@@ -1,5 +1,12 @@
 # Stable Allocation Engine (SAE)
 
+![C++](https://img.shields.io/badge/C%2B%2B-17-00599C?style=for-the-badge&logo=cplusplus&logoColor=white)
+![Make](https://img.shields.io/badge/Build-Make-427819?style=for-the-badge&logo=gnu&logoColor=white)
+![CSV](https://img.shields.io/badge/Data-CSV-217346?style=for-the-badge&logo=microsoftexcel&logoColor=white)
+![CLI](https://img.shields.io/badge/Interface-CLI-4D4D4D?style=for-the-badge&logo=gnubash&logoColor=white)
+![Algorithm](https://img.shields.io/badge/Algorithm-Gale--Shapley-8A2BE2?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-CLI%20Complete-brightgreen?style=for-the-badge)
+
 A C++ CLI tool that matches candidates to companies with fixed seat counts
 using a Gale–Shapley-style stable matching algorithm — built for the PM
 Internship Scheme allocation problem (SIH25033/34).
