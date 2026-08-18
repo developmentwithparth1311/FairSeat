@@ -1,0 +1,16 @@
+id,name,required_skills,seats,sector,location
+101,Horizon Solutions,ML;SQL,2,IT,Pune
+102,Sterling Marketing,SEO;Communication,2,Marketing,Bengaluru
+103,BlueOrbit Finance,Finance;Statistics,2,Finance,Delhi
+104,Ironclad HR Consulting,Labor Law;Excel;Employee Relations,3,HR,Mumbai
+105,Cognito Studio,Photoshop;Figma,2,Design,Hyderabad
+106,Catalyst Logistics,Inventory Management;Supply Chain;Excel,3,Operations,Mumbai
+107,Apex Solutions,AWS;Git;Cloud,2,IT,Pune
+108,NetCore Marketing,Branding;Social Media;Marketing,2,Marketing,Chennai
+109,Momentum Finance,Financial Modeling;Statistics,5,Finance,Mumbai
+110,Fusion HR Consulting,Excel;Payroll;Recruitment,5,HR,Bengaluru
+111,DataWave Studio,Sketch;Prototyping;Illustrator,5,Design,Kolkata
+112,Vertex Logistics,Logistics;Supply Chain;Excel,4,Operations,Ahmedabad
+113,TechNova Solutions,React;Linux,5,IT,Chennai
+114,Quantum Marketing,Analytics;Branding,4,Marketing,Bengaluru
+115,Skyline Finance,Finance;Accounting;Auditing,4,Finance,Hyderabad

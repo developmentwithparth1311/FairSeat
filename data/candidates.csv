@@ -1,0 +1,63 @@
+id,name,skills,cgpa,sector,location
+1,Vivek Reddy,DSA;SQL;React;Java,8.6,IT,Mumbai
+2,Swati Chatterjee,Python;SQL;Excel,8.1,IT,Kolkata
+3,Rahul Menon,Figma;UI/UX;Illustrator,6.6,Design,Chennai
+4,Vikram Mehta,Excel;Labor Law,9.1,HR,Ahmedabad
+5,Omkar Reddy,Employee Relations;Excel,8.4,HR,Chennai
+6,Rajat Rao,Excel;Supply Chain,9.7,Operations,Delhi
+7,Vikram Gupta,Auditing;Accounting;Finance,6.8,Finance,Hyderabad
+8,Chirag Mehta,UI/UX;Sketch;Prototyping;Figma,7.0,Design,Delhi
+9,Bhavna Singh,AWS;C++,7.5,IT,Mumbai
+10,Pooja Malhotra,Supply Chain;Inventory Management;Six Sigma,8.4,Operations,Bengaluru
+11,Siddharth Verma,Content Writing;Social Media;Analytics;SEO,7.5,Marketing,Delhi
+12,Aditya Bose,Communication;Labor Law;Branding,8.3,HR,Kolkata
+13,Dev Chauhan,Excel;Employee Relations;Communication;Labor Law,8.6,HR,Hyderabad
+14,Hema Singh,Statistics;Java;Linux;Employee Relations,8.9,IT,Mumbai
+15,Vivek Joshi,Six Sigma;Supply Chain;Excel;Inventory Management,8.0,Operations,Pune
+16,Tarun Singh,Communication;Excel,9.2,HR,Hyderabad
+17,Kavya Patel,Communication;Excel;Social Media;SEO,9.7,Marketing,Bengaluru
+18,Aditya Pillai,Photoshop;Sketch,7.6,Design,Delhi
+19,Omkar Rao,Inventory Management;Logistics;Supply Chain,7.7,Operations,Delhi
+20,Rahul Mehta,Taxation;Financial Modeling;Excel,6.3,Finance,Pune
+21,Rohan Singh,SQL;DSA;Git;Linux;Auditing,9.6,IT,Ahmedabad
+22,Kavya Pillai,Communication;Labor Law,7.3,HR,Kolkata
+23,Shreya Patel,Excel;Six Sigma;Supply Chain;Logistics,6.4,Operations,Delhi
+24,Nikhil Kapoor,Payroll;Recruitment;Communication,7.7,HR,Mumbai
+25,Sneha Kapoor,React;SQL;Illustrator,6.8,IT,Kolkata
+26,Sneha Nair,Payroll;Excel,9.0,HR,Hyderabad
+27,Ritika Kapoor,Inventory Management;Supply Chain;Excel;Six Sigma;Cloud,8.8,Operations,Pune
+28,Falguni Singh,Cloud;Linux,9.2,IT,Bengaluru
+29,Sneha Bose,Python;Cloud;Statistics,6.5,IT,Delhi
+30,Swati Chauhan,Python;Statistics;Git;Cloud,7.2,IT,Hyderabad
+31,Pooja Singh,Branding;Communication;Social Media,7.7,Marketing,Mumbai
+32,Aarav Menon,Figma;Prototyping;UI/UX;Photoshop;Excel,9.3,Design,Chennai
+33,Manav Nair,Labor Law;Excel;Communication;Employee Relations,7.1,HR,Mumbai
+34,Aditya Kumar,JavaScript;Networking;Employee Relations,6.8,IT,Chennai
+35,Pooja Kumar,Photoshop;Figma;Sketch,9.2,Design,Pune
+36,Aarav Singh,Content Writing;Communication;Social Media;SEO,7.6,Marketing,Pune
+37,Ananya Mehta,Six Sigma;Excel,8.2,Operations,Bengaluru
+38,Ritika Verma,ML;React;C++,6.8,IT,Delhi
+39,Abhinav Reddy,Financial Modeling;Statistics;Taxation;Finance,6.9,Finance,Bengaluru
+40,Meera Chatterjee,JavaScript;ML,7.6,IT,Delhi
+41,Neha Nair,Inventory Management;Excel,6.8,Operations,Ahmedabad
+42,Yash Joshi,Excel;Social Media;Excel,9.3,Marketing,Hyderabad
+43,Yash Bose,Employee Relations;Excel;Communication;Payroll,7.0,HR,Hyderabad
+44,Rohan Reddy,Photoshop;Prototyping;Illustrator,7.9,Design,Kolkata
+45,Siddharth Patel,Excel;Supply Chain;Inventory Management,9.6,Operations,Chennai
+46,Uma Singh,Logistics;Six Sigma,7.2,Operations,Hyderabad
+47,Pallavi Verma,Branding;Social Media;Analytics,8.3,Marketing,Hyderabad
+48,Anjali Kapoor,DSA;SQL;Statistics,8.3,IT,Chennai
+49,Shreya Menon,Recruitment;Employee Relations;Payroll;Excel;DSA,8.0,HR,Chennai
+50,Priya Iyer,Supply Chain;Six Sigma;Excel;Analytics,8.3,Operations,Mumbai
+51,Shreya Chatterjee,Supply Chain;Inventory Management;Six Sigma;Logistics;React,9.3,Operations,Mumbai
+52,Hema Chatterjee,Analytics;Excel,9.5,Marketing,Mumbai
+53,Shreya Verma,Employee Relations;Labor Law;Excel;Recruitment,8.7,HR,Kolkata
+54,Pallavi Menon,Analytics;SEO;Marketing;Communication,7.1,Marketing,Ahmedabad
+55,Vivek Iyer,Excel;Auditing;Accounting;Excel,9.4,Finance,Mumbai
+56,Aditya Verma,Marketing;Social Media;Communication;Photoshop,8.1,Marketing,Kolkata
+57,Sneha Rao,Employee Relations;Communication;Payroll,9.6,HR,Hyderabad
+58,Gaurav Gupta,Labor Law;Employee Relations;Recruitment;Payroll;Illustrator,6.1,HR,Chennai
+59,Abhinav Gupta,Inventory Management;Supply Chain,8.0,Operations,Kolkata
+60,Swati Malhotra,Excel;Inventory Management;Recruitment,6.2,Operations,Kolkata
+Replace data/companies.csv with this (15 companies, 50 seats total):
+
