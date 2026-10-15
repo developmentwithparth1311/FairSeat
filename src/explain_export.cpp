@@ -124,11 +124,11 @@ void exportExplanationData(const Allocator& allocator,
             if (pi >= topK && (!matched || companyId != candidate.matchedCompany)) continue;
             const Company& company = allocator.companies().at(companyId);
             const ScoreBreakdown breakdown = scoreBreakdown(candidate, company);
-            const double cutoff = allocator.cutoffFor(companyId);
+            const auto cutoff = allocator.cutoffFor(companyId);
             std::string outcome;
             if (companyId == candidate.matchedCompany) outcome = "matched";
             else if (matched && pi > static_cast<std::size_t>(std::find(candidate.preferenceList.begin(), candidate.preferenceList.end(), candidate.matchedCompany) - candidate.preferenceList.begin())) outcome = "not_reached";
-            else if (cutoff >= 0.0 && breakdown.total <= cutoff) outcome = "lost_seat";
+            else if (cutoff && breakdown.total <= *cutoff) outcome = "lost_seat";
             else outcome = "not_reached";
 
             if (emitted++) candidateOut << ", ";
@@ -148,8 +148,8 @@ void exportExplanationData(const Allocator& allocator,
             candidateOut << ", \"outcome\": ";
             writeString(candidateOut, outcome);
             candidateOut << ", \"company_cutoff_score\": ";
-            if (cutoff < 0.0) candidateOut << "null";
-            else candidateOut << cutoff;
+            if (!cutoff) candidateOut << "null";
+            else candidateOut << *cutoff;
             candidateOut << '}';
         }
         candidateOut << "]}";
@@ -163,7 +163,7 @@ void exportExplanationData(const Allocator& allocator,
     for (std::size_t i = 0; i < companyIds.size(); ++i) {
         if (i) companyOut << ",\n";
         const Company& company = allocator.companies().at(companyIds[i]);
-        const double cutoff = allocator.cutoffFor(company.id);
+        const auto cutoff = allocator.cutoffFor(company.id);
         companyOut << "    {\"id\": ";
         writeString(companyOut, std::to_string(company.id));
         companyOut << ", \"name\": ";
@@ -176,8 +176,8 @@ void exportExplanationData(const Allocator& allocator,
         companyOut << ", \"location\": ";
         writeString(companyOut, company.location);
         companyOut << ", \"cutoff_score\": ";
-        if (cutoff < 0.0) companyOut << "null";
-        else companyOut << cutoff;
+        if (!cutoff) companyOut << "null";
+        else companyOut << *cutoff;
         companyOut << '}';
     }
     companyOut << "\n  ]\n}\n";

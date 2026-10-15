@@ -30,9 +30,9 @@ double Allocator::scoreFor(int candidateId, int companyId) const {
     return computeScore(candidates_.at(candidateId), companies_.at(companyId));
 }
 
-double Allocator::cutoffFor(int companyId) const {
+std::optional<double> Allocator::cutoffFor(int companyId) const {
     const Company& company = companies_.at(companyId);
-    if (company.seatsFilled() < company.seats || company.heldSeats.empty()) return -1.0;
+    if (company.seatsFilled() < company.seats || company.heldSeats.empty()) return std::nullopt;
     return company.heldSeats.top().first;
 }
 

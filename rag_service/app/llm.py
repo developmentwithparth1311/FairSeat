@@ -111,52 +111,56 @@ class MockLLM:
         return "I don't know based on the candidate facts and retrieved knowledge available here. Please check the official scheme website for scheme policy details."
 
 
-class AnthropicLLM:
-    """Minimal Anthropic Messages API client, using httpx only."""
+class GeminiLLM:
+    """Minimal Gemini generateContent API client, using httpx only."""
 
-    endpoint = "https://api.anthropic.com/v1/messages"
+    endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
     def __init__(self, api_key: str, model: str, timeout: float = 30.0):
         if not api_key:
-            raise LLMError("LLM_API_KEY is required when LLM_PROVIDER=anthropic")
+            raise LLMError("GEMINI_API_KEY is required when LLM_PROVIDER=gemini")
         if not model:
-            raise LLMError("Set LLM_MODEL to an active Anthropic model when LLM_PROVIDER=anthropic")
+            raise LLMError("Set LLM_MODEL to an active Gemini model when LLM_PROVIDER=gemini")
         self.api_key = api_key
         self.model = model
         self.timeout = timeout
 
     def generate(self, system: str, messages: list[dict]) -> str:
+        contents = []
+        for message in messages:
+            role = "model" if message.get("role") == "assistant" else "user"
+            contents.append({"role": role, "parts": [{"text": message["content"]}]})
         body = {
-            "model": self.model,
-            "max_tokens": 700,
-            "system": system,
-            "messages": messages,
+            "systemInstruction": {"parts": [{"text": system}]},
+            "contents": contents,
+            "generationConfig": {"maxOutputTokens": 700},
         }
         headers = {
             "content-type": "application/json",
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
+            "x-goog-api-key": self.api_key,
         }
         for attempt in range(2):
             try:
-                response = httpx.post(self.endpoint, headers=headers, json=body, timeout=self.timeout)
+                response = httpx.post(self.endpoint.format(model=self.model), headers=headers, json=body, timeout=self.timeout)
                 if response.status_code == 429 or response.status_code >= 500:
                     if attempt == 0:
                         time.sleep(0.25)
                         continue
-                    raise LLMError(f"Anthropic service returned HTTP {response.status_code}; please try again.")
+                    raise LLMError(f"Gemini service returned HTTP {response.status_code}; please try again.")
                 if response.status_code >= 400:
-                    raise LLMError(f"Anthropic request was rejected (HTTP {response.status_code}); check the model and API settings.")
+                    raise LLMError(f"Gemini request was rejected (HTTP {response.status_code}); check the model and API settings.")
                 payload = response.json()
-                text = "".join(block.get("text", "") for block in payload.get("content", []) if block.get("type") == "text")
+                candidates = payload.get("candidates", [])
+                parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
+                text = "".join(part.get("text", "") for part in parts)
                 if not text.strip():
-                    raise LLMError("Anthropic returned an empty answer; please try again.")
+                    raise LLMError("Gemini returned an empty answer; please try again.")
                 return text.strip()
             except httpx.RequestError as exc:
                 if attempt == 0:
                     time.sleep(0.25)
                     continue
-                logger.warning("Anthropic request failed after retry (%s)", type(exc).__name__)
+                logger.warning("Gemini request failed after retry (%s)", type(exc).__name__)
                 raise LLMError("The language service could not be reached. Please try again later.") from exc
         raise LLMError("The language service could not complete the request.")
 
@@ -164,6 +168,6 @@ class AnthropicLLM:
 def create_llm(provider: str, api_key: str = "", model: str = ""):
     if provider == "mock":
         return MockLLM()
-    if provider == "anthropic":
-        return AnthropicLLM(api_key=api_key, model=model)
+    if provider == "gemini":
+        return GeminiLLM(api_key=api_key, model=model)
     raise LLMError(f"Unsupported LLM_PROVIDER: {provider}")

@@ -77,6 +77,10 @@ Social Media, Statistics, Supply Chain.
   configured sentence-transformer model and FAISS inner-product search when
   FAISS is installed; a normalized NumPy exact-search fallback keeps local
   tests and offline development deterministic.
+- Runtime package pins are recorded in `rag_service/requirements.txt`.
+  `faiss-cpu` is pinned to 1.15.1 and NumPy to 2.2.6 for the declared Python
+  3.10+ range; the local environment did not have FAISS installed, so its
+  native index save/load branch was not exercised here.
 - The cache key hashes Markdown content and generated company documents, and
   records the embedding model name. Company descriptions are generated in
   memory from the loaded `companies.json` export.
@@ -92,10 +96,21 @@ Social Media, Statistics, Supply Chain.
   exported facts, retrieved knowledge, that candidate's own recent history,
   and the new question.
 - The mock provider is the default and uses deterministic templates. The
-  optional Anthropic client uses the Messages API through `httpx`, requires
-  both `LLM_API_KEY` and an explicitly configured `LLM_MODEL`, and retries
-  one transient request failure. API shape and headers follow Anthropic's
-  [Messages API reference](https://docs.anthropic.com/en/api/messages).
+  optional Gemini client uses the generateContent API through `httpx`, requires
+  `GEMINI_API_KEY` and an explicitly configured `LLM_MODEL`, and retries one
+  transient request failure. API shape follows Google's
+  [Gemini API reference](https://ai.google.dev/api/generate-content).
 - Privacy, input length/control checks, scope checks, number tripwire, and the
   guidance-only disclaimer run in the API layer. The real provider has not
   been exercised against an external API; tests mock provider responses.
+
+## Phase 6: polish
+
+- Added root and service setup documentation, a checked-in `.env.example`, and
+  the supplied implementation spec under `docs/SAE_RAG_ASSISTANT_SPEC.md` so
+  the root README can link to it.
+- The six acceptance scenarios are recorded in `docs/DEMO_NOTES.md` and covered
+  by offline tests with local fixtures. The official scheme FAQ remains marked
+  for verification before a public demo.
+- Cutoff access returns `std::optional<double>` so an open seat is represented
+  explicitly as absent, including for any unusual negative score input.

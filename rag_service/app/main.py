@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from .config import Settings, settings
 from .loaders import ExportData, ExportLoadError, load_exports
@@ -28,7 +28,8 @@ def create_app(config: Settings = settings) -> FastAPI:
     app = FastAPI(title="SAE Candidate Assistant", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost", "http://127.0.0.1", "http://localhost:3000"],
+        allow_origins=[],
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
         allow_credentials=False,
         allow_methods=["GET", "POST"],
         allow_headers=["*"],
@@ -47,6 +48,9 @@ def create_app(config: Settings = settings) -> FastAPI:
         app.state.data = data
         app.state.analyzer = SkillAnalyzer(data, Path(config.kb_dir) / "skill_aliases.json")
         app.state.load_error = None
+        app.state.kb_index = None
+        app.state.retriever = None
+        app.state.sessions.clear()
         return data
 
     try:
@@ -151,19 +155,23 @@ def create_app(config: Settings = settings) -> FastAPI:
                 "sources": [], "facts_used": {}, "disclaimer": DISCLAIMER,
             }
 
-        retrieved = []
-        if app.state.retriever is not None:
-            retrieved = app.state.retriever.retrieve(message, k=config.top_k_chunks)
-
-        session_id = request.session_id or str(uuid.uuid4())
-        session_key = (candidate.id, session_id)
-        history = app.state.sessions.get(session_key, [])
-        from .prompts import build_prompt
         sectors = {company.sector for company in data.companies.values() if company.sector}
         requested_sector = next((
             sector for sector in sorted(sectors, key=len, reverse=True)
             if re.search(rf"\b{re.escape(sector)}\b", message, re.I)
         ), None)
+        retrieval_query = message
+        if re.search(r"skill|learn|improv|what should i study|missing", message, re.I):
+            gap = app.state.analyzer.skill_gap(candidate.id, sector=requested_sector)
+            retrieval_query += " " + " ".join(item["skill"] for item in gap["missing_ranked"][:3])
+        retrieved = []
+        if app.state.retriever is not None:
+            retrieved = app.state.retriever.retrieve(retrieval_query, k=config.top_k_chunks)
+
+        session_id = request.session_id or str(uuid.uuid4())
+        session_key = (candidate.id, session_id)
+        history = app.state.sessions.get(session_key, [])
+        from .prompts import build_prompt
         system, messages, facts = build_prompt(
             candidate, app.state.analyzer, message, retrieved, history,
             max_history_turns=config.max_history_turns,

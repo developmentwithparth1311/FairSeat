@@ -1,4 +1,7 @@
 import json
+import hashlib
+
+import numpy as np
 
 from fastapi.testclient import TestClient
 import pytest
@@ -7,14 +10,25 @@ from app.config import Settings
 from app.loaders import ExportLoadError, load_exports
 from app.main import create_app
 from app.llm import MockLLM
-from app.kb_index import Chunk
+from app.kb_index import Chunk, KBIndex
 from app.retriever import RetrievedChunk
 from app.prompts import build_prompt
+from app.retriever import Retriever
 from app.guardrails import (
     DISCLAIMER, InputError, asks_for_other_candidate, clean_message,
     is_out_of_scope, unverified_numbers,
 )
 from app.skills import SkillAnalyzer
+
+
+class LocalEmbedder:
+    def encode(self, texts):
+        vectors = np.zeros((len(texts), 256), dtype=np.float32)
+        for row, text in enumerate(texts):
+            for token in text.lower().split():
+                column = int.from_bytes(hashlib.sha256(token.strip(".,!?;:#()[]").encode()).digest()[:2], "little") % 256
+                vectors[row, column] += 1
+        return vectors
 
 
 def test_loader_and_unsupported_schema(export_dir):
@@ -83,6 +97,11 @@ def test_api_health_summary_gap_and_unknown_candidate(export_dir):
     assert client.get("/candidates/C001/skill-gap").status_code == 200
     assert client.get("/candidates/MISSING/summary").status_code == 404
     assert client.post("/chat", json={"candidate_id": "MISSING", "message": "How did I match?"}).status_code == 404
+    cors = client.options("/chat", headers={
+        "Origin": "http://localhost:5173",
+        "Access-Control-Request-Method": "POST",
+    })
+    assert cors.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
 def test_prompt_contains_only_selected_candidate(export_dir):
@@ -166,6 +185,27 @@ def test_chat_advisory_privacy_scope_skill_gap_and_debug(export_dir):
     }).json()
     assert "I don't know" in policy["answer"]
     assert "official PM Internship Scheme website" in policy["answer"]
+
+
+def test_chat_uses_missing_skill_guide_and_returns_source(export_dir):
+    config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb")
+    app = create_app(config)
+    embedder = LocalEmbedder()
+    chunk = Chunk(
+        text="1. Learn Docker images and containers.\n2. Run a small local app.",
+        source_path="skills/docker.md", title="Docker",
+        section="How to get started (beginner path)", type="skill", chunk_id="docker#1",
+    )
+    vectors = KBIndex._normalize(embedder.encode([chunk.text]))
+    index = KBIndex([chunk], vectors, embedder)
+    app.state.kb_index = index
+    app.state.retriever = Retriever(index, minimum_similarity=0.05)
+    response = TestClient(app).post("/chat", json={
+        "candidate_id": "C001", "message": "What should I learn to improve?"
+    }).json()
+    assert "Learn Docker images" in response["answer"]
+    assert "[KB-1]" in response["answer"]
+    assert response["sources"][0]["path"] == "kb/skills/docker.md"
 
 
 def test_mock_explains_matched_candidate_missing_first_choice(export_dir):

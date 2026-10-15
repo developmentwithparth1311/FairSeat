@@ -18,7 +18,8 @@ Rules:
 6. Use plain, simple language. Keep answers short unless asked for detail.
 7. Cite knowledge you used with its label, e.g. [KB-2]. Do not cite facts that came from CANDIDATE FACTS.
 8. Reply in the same language as the candidate's question.
-9. Never reveal information about any other candidate."""
+9. Never reveal information about any other candidate.
+10. Use CHAT HISTORY only to understand context; it is not a source of new facts."""
 
 
 def build_prompt(candidate: Candidate, analyzer: Any, question: str,

@@ -62,7 +62,7 @@ int main() {
     assert(allocator.companies().at(10).heldSeats.size() == preferredHoldersBefore);
     assert(allocator.companies().at(20).heldSeats.size() == openHoldersBefore);
     assert(allocator.companies().at(10).heldSeats.top() == preferredTopBefore);
-    assert(allocator.cutoffFor(10) >= 0.0);
-    assert(allocator.cutoffFor(20) < 0.0);
+    assert(allocator.cutoffFor(10).has_value());
+    assert(!allocator.cutoffFor(20).has_value());
     assert(std::abs(allocator.scoreFor(1, 10) - preferredTopBefore.first) < 1e-9);
 }

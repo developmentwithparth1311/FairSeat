@@ -75,6 +75,9 @@ Menu flow (must be done in order):
    `exports/candidates.json` and `exports/companies.json`.
 8. **Exit**
 
+The engine's original **Exit** entry moved from option 6 to option 8 to leave
+the requested explanation-export number at 7; option 6 is currently unused.
+
 ## CSV Formats
 
 **`candidates.csv`**
@@ -109,3 +112,29 @@ Weights are adjustable in `src/scoring.cpp`.
 ## Status
 
 CLI version — functional and tested. UI layer planned as a later phase.
+
+## RAG Candidate Assistant
+
+The optional assistant explains the completed allocation and offers skill
+guidance. SAE remains the only scoring and allocation engine; the Python
+service reads its generated JSON exports and does not modify results.
+
+```mermaid
+flowchart LR
+  CSV[Candidate and company CSV] --> SAE[C++ SAE score and allocate]
+  SAE -->|menu option 7| JSON[exports JSON]
+  JSON --> API[Python API and deterministic skill analysis]
+  KB[Knowledge base Markdown] --> INDEX[Chunk and vector index]
+  JSON --> INDEX
+  API --> CHAT[Mock or configured LLM]
+  INDEX --> CHAT
+  CHAT --> CLI[chat_cli.py]
+```
+
+Run the C++ menu through options **1, 2, 3, and 7** to generate
+`exports/candidates.json` and `exports/companies.json`. The menu's Exit action
+is option **8**. Then follow the setup and chat instructions in
+[rag_service/README.md](rag_service/README.md). The mock provider works without
+an API key. Full implementation requirements are in
+[docs/SAE_RAG_ASSISTANT_SPEC.md](docs/SAE_RAG_ASSISTANT_SPEC.md), and repository
+decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md).
