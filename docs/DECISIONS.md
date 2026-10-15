@@ -83,3 +83,19 @@ Social Media, Statistics, Supply Chain.
 - Scheme policy content remains a placeholder marked
   `TODO: VERIFY AGAINST OFFICIAL SOURCE`; no policy numbers or dates were
   added.
+
+## Phase 5: chat flow
+
+- Candidate sessions are keyed by `(candidate_id, session_id)` so a reused
+  session identifier cannot carry one candidate's history into another
+  candidate's prompt. The prompt contains only the selected candidate's
+  exported facts, retrieved knowledge, that candidate's own recent history,
+  and the new question.
+- The mock provider is the default and uses deterministic templates. The
+  optional Anthropic client uses the Messages API through `httpx`, requires
+  both `LLM_API_KEY` and an explicitly configured `LLM_MODEL`, and retries
+  one transient request failure. API shape and headers follow Anthropic's
+  [Messages API reference](https://docs.anthropic.com/en/api/messages).
+- Privacy, input length/control checks, scope checks, number tripwire, and the
+  guidance-only disclaimer run in the API layer. The real provider has not
+  been exercised against an external API; tests mock provider responses.
