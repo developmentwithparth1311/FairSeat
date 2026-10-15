@@ -19,6 +19,7 @@ class Settings:
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
     top_k_chunks: int = int(os.getenv("TOP_K_CHUNKS", "4"))
     max_history_turns: int = int(os.getenv("MAX_HISTORY_TURNS", "6"))
+    min_similarity: float = float(os.getenv("MIN_SIMILARITY", "0.25"))
 
 
 settings = Settings()

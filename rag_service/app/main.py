@@ -28,6 +28,8 @@ def create_app(config: Settings = settings) -> FastAPI:
     app.state.data = None
     app.state.load_error = None
     app.state.analyzer = None
+    app.state.kb_index = None
+    app.state.retriever = None
 
     def reload_data() -> ExportData:
         data = load_exports(Path(config.export_dir))
@@ -54,7 +56,7 @@ def create_app(config: Settings = settings) -> FastAPI:
             "exports_loaded": data is not None,
             "candidates": len(data.candidates) if data else 0,
             "companies": len(data.companies) if data else 0,
-            "kb_chunks": 0,
+            "kb_chunks": len(app.state.kb_index.chunks) if app.state.kb_index else 0,
             "llm_provider": config.llm_provider,
             "error": app.state.load_error,
         }
@@ -81,6 +83,27 @@ def create_app(config: Settings = settings) -> FastAPI:
             app.state.load_error = str(exc)
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         return {"candidates": len(data.candidates), "companies": len(data.companies), "status": "reloaded"}
+
+    @app.post("/admin/reindex")
+    def reindex_endpoint():
+        data = current_data()
+        try:
+            from .kb_index import KBIndex
+            from .retriever import Retriever
+
+            index = KBIndex.build_or_load(
+                Path(config.kb_dir), data.companies, Path(config.index_dir),
+                model_name=config.embed_model,
+            )
+            app.state.kb_index = index
+            app.state.retriever = Retriever(
+                index,
+                company_names=[company.name for company in data.companies.values()],
+                minimum_similarity=config.min_similarity,
+            )
+        except (RuntimeError, OSError, ValueError) as exc:
+            raise HTTPException(status_code=503, detail=f"Could not build knowledge index: {exc}") from exc
+        return {"status": "reindexed", "kb_chunks": len(index.chunks)}
 
     return app
 

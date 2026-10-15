@@ -67,3 +67,19 @@ Social Media, Statistics, Supply Chain.
   exported top choices.
 - Embeddings, retrieval, chat, and `/admin/reindex` are deferred to their
   specified later phases.
+
+## Phase 4: knowledge base and retrieval
+
+- Created one guide for each distinct required skill in the sample company
+  data. The source value `ML` is represented by the canonical guide
+  `kb/skills/machine-learning.md`, according to `skill_aliases.json`.
+- `/admin/reindex` builds or loads the persisted vector index. It uses the
+  configured sentence-transformer model and FAISS inner-product search when
+  FAISS is installed; a normalized NumPy exact-search fallback keeps local
+  tests and offline development deterministic.
+- The cache key hashes Markdown content and generated company documents, and
+  records the embedding model name. Company descriptions are generated in
+  memory from the loaded `companies.json` export.
+- Scheme policy content remains a placeholder marked
+  `TODO: VERIFY AGAINST OFFICIAL SOURCE`; no policy numbers or dates were
+  added.
