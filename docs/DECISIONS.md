@@ -1,0 +1,42 @@
+# Implementation decisions
+
+## Phase 1: repository inspection
+
+- The implementation uses `Candidate` and `Company` structs in
+  `include/candidate.h` and `include/company.h`, with allocation in
+  `Allocator` (`include/allocator.h`, `src/allocator.cpp`). Scoring lives in
+  `include/scoring.h` and `src/scoring.cpp`; the CLI is `src/main.cpp`.
+- Candidate and company IDs are `int`, not strings. Exported JSON should
+  serialize them consistently as strings if following the proposed schema.
+- The existing `computeScore` returns a 0–100 score. The README's weights
+  match the implementation: skills 50%, CGPA 30%, sector 10%, location 10%.
+- `Company::heldSeats` is a public min-heap of `(score, candidate ID)` pairs;
+  its top is the weakest current holder. An exporter can inspect a copy without
+  changing allocation state.
+- Skill matching currently uses exact, case-sensitive set membership. The
+  explain-score change should make comparison trimmed and case-insensitive
+  while ensuring the score API uses the same breakdown calculation.
+- The initial build exposed a pre-existing syntax error: `Candidate` lacked
+  its closing brace. Added that brace so the repository can build; no runtime
+  behavior is changed by the repair.
+
+## Sample data skill topics
+
+Skill documentation should be generated only for skills present in
+`data/companies.csv`. All company skills are currently “to be written” for the
+knowledge-base phase:
+
+AWS, Accounting, Analytics, Auditing, Branding, Cloud, Communication,
+Employee Relations, Excel, Figma, Finance, Financial Modeling, Git,
+Illustrator, Inventory Management, Labor Law, Linux, Logistics, ML, Marketing,
+Payroll, Photoshop, Prototyping, React, Recruitment, SEO, SQL, Sketch,
+Social Media, Statistics, Supply Chain.
+
+## Baseline run observations
+
+- After repairing the missing `Candidate` brace, `make clean && make` and
+  `make test` pass. The sample menu flow (load, preferences, allocation, view,
+  CSV export, exit) completes.
+- `data/candidates.csv` ends with an explanatory prose line rather than a CSV
+  record. The existing loader warns that it skips this malformed row and loads
+  the 60 valid candidates. The input data was left unchanged.

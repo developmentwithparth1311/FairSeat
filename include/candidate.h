@@ -14,3 +14,4 @@ struct Candidate {
     std::vector<int> preferenceList;
     size_t nextPrefIdx = 0;  
     int matchedCompany = -1; 
+};
