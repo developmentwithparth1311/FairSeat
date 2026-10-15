@@ -71,7 +71,9 @@ Menu flow (must be done in order):
 3. **Run stable allocation** — runs the queue/heap matching process
 4. **View results** — prints final matches per company + any unmatched candidates
 5. **Export results to CSV** — saves to `results.csv`
-6. **Exit**
+7. **Export explanation data for RAG assistant** — after allocation, writes
+   `exports/candidates.json` and `exports/companies.json`.
+8. **Exit**
 
 ## CSV Formats
 

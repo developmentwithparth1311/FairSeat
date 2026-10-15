@@ -24,6 +24,18 @@ double Allocator::getScore(int candId, int compId) {
     return s;
 }
 
+double Allocator::scoreFor(int candidateId, int companyId) const {
+    auto it = scoreCache_.find(cacheKey(candidateId, companyId));
+    if (it != scoreCache_.end()) return it->second;
+    return computeScore(candidates_.at(candidateId), companies_.at(companyId));
+}
+
+double Allocator::cutoffFor(int companyId) const {
+    const Company& company = companies_.at(companyId);
+    if (company.seatsFilled() < company.seats || company.heldSeats.empty()) return -1.0;
+    return company.heldSeats.top().first;
+}
+
 void Allocator::buildPreferenceLists() {
     for (auto& [candId, candidate] : candidates_) {
         std::vector<std::pair<double,int>> scored;

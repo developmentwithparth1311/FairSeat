@@ -4,6 +4,7 @@
 #include <memory>
 #include "csv_utils.h"
 #include "allocator.h"
+#include "explain_export.h"
 
 static void printMenu() {
     std::cout << "\n===== PM Internship Stable Allocation Engine =====\n"
@@ -12,7 +13,8 @@ static void printMenu() {
               << "3. Run stable allocation\n"
               << "4. View results\n"
               << "5. Export results to CSV\n"
-              << "6. Exit\n"
+              << "7. Export explanation data for RAG assistant\n"
+              << "8. Exit\n"
               << "Choose an option: ";
 }
 
@@ -90,7 +92,17 @@ int main() {
                 allocator->exportResults(outPath);
                 break;
             }
-            case 6:
+            case 7: {
+                if (!allocated) { std::cout << "Run allocation first (option 3).\n"; break; }
+                try {
+                    exportExplanationData(*allocator);
+                    std::cout << "Explanation data exported to exports/candidates.json and exports/companies.json.\n";
+                } catch (const std::exception& e) {
+                    std::cout << "Export error: " << e.what() << "\n";
+                }
+                break;
+            }
+            case 8:
                 std::cout << "Exiting.\n";
                 return 0;
             default:

@@ -16,6 +16,9 @@
 - Skill matching currently uses exact, case-sensitive set membership. The
   explain-score change should make comparison trimmed and case-insensitive
   while ensuring the score API uses the same breakdown calculation.
+- Menu item 7 is the explanation export. Exit moves from item 6 to item 8 to
+  keep Exit last while preserving the requested export number; item 6 is left
+  unused rather than changing the existing numbered actions 1–5.
 - The initial build exposed a pre-existing syntax error: `Candidate` lacked
   its closing brace. Added that brace so the repository can build; no runtime
   behavior is changed by the repair.
@@ -40,3 +43,15 @@ Social Media, Statistics, Supply Chain.
 - `data/candidates.csv` ends with an explanatory prose line rather than a CSV
   record. The existing loader warns that it skips this malformed row and loads
   the 60 valid candidates. The input data was left unchanged.
+
+## Phase 2: explain export
+
+- `scoreBreakdown` returns weighted points on the existing 0–100 scale, and
+  `computeScore` returns its `total`. Skill comparisons now trim whitespace and
+  fold ASCII case; matched and missing skill labels are canonical lowercase.
+- Exported IDs are JSON strings to match the proposed export schema even though
+  the C++ maps use integer IDs.
+- A choice is marked `lost_seat` when its final cutoff exists and its score is
+  less than or equal to that cutoff. Equality is included because the allocator
+  rejects a challenger unless its score is strictly greater than the weakest
+  holder.

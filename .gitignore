@@ -6,3 +6,6 @@ allocator_app
 .DS_Store
 .vscode/
 .idea/
+.env
+.index/
+exports/*.json

@@ -1,0 +1,184 @@
+#include "explain_export.h"
+
+#include "allocator.h"
+#include "scoring.h"
+
+#include <algorithm>
+#include <ctime>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
+#include <stdexcept>
+#include <vector>
+
+namespace {
+std::string jsonEscape(const std::string& value) {
+    std::ostringstream escaped;
+    for (unsigned char ch : value) {
+        switch (ch) {
+            case '"': escaped << "\\\""; break;
+            case '\\': escaped << "\\\\"; break;
+            case '\b': escaped << "\\b"; break;
+            case '\f': escaped << "\\f"; break;
+            case '\n': escaped << "\\n"; break;
+            case '\r': escaped << "\\r"; break;
+            case '\t': escaped << "\\t"; break;
+            default:
+                if (ch < 0x20) {
+                    escaped << "\\u" << std::hex << std::setw(4) << std::setfill('0')
+                            << static_cast<int>(ch) << std::dec << std::setfill(' ');
+                } else {
+                    escaped << static_cast<char>(ch);
+                }
+        }
+    }
+    return escaped.str();
+}
+
+void writeString(std::ostream& out, const std::string& value) {
+    out << '"' << jsonEscape(value) << '"';
+}
+
+void writeStringArray(std::ostream& out, const std::vector<std::string>& values) {
+    out << '[';
+    for (std::size_t i = 0; i < values.size(); ++i) {
+        if (i) out << ", ";
+        writeString(out, values[i]);
+    }
+    out << ']';
+}
+
+std::string generatedAtUtc() {
+    const std::time_t now = std::time(nullptr);
+    std::tm utc{};
+#if defined(_WIN32)
+    gmtime_s(&utc, &now);
+#else
+    gmtime_r(&now, &utc);
+#endif
+    std::ostringstream out;
+    out << std::put_time(&utc, "%Y-%m-%dT%H:%M:%SZ");
+    return out.str();
+}
+
+std::vector<std::string> skills(const std::set<std::string>& values) {
+    return {values.begin(), values.end()};
+}
+}
+
+void exportExplanationData(const Allocator& allocator,
+                           const std::string& outputDirectory,
+                           std::size_t topK) {
+    namespace fs = std::filesystem;
+    fs::create_directories(outputDirectory);
+    const auto candidatesPath = fs::path(outputDirectory) / "candidates.json";
+    const auto companiesPath = fs::path(outputDirectory) / "companies.json";
+    std::ofstream candidateOut(candidatesPath);
+    std::ofstream companyOut(companiesPath);
+    if (!candidateOut || !companyOut) {
+        throw std::runtime_error("Could not create explanation export files in " + outputDirectory);
+    }
+
+    candidateOut.imbue(std::locale::classic());
+    companyOut.imbue(std::locale::classic());
+    candidateOut << std::fixed << std::setprecision(1);
+    companyOut << std::fixed << std::setprecision(1);
+    candidateOut << "{\n  \"schema_version\": 1,\n  \"generated_at\": ";
+    writeString(candidateOut, generatedAtUtc());
+    candidateOut << ",\n  \"scoring_weights\": {\"skills\": 0.5, \"cgpa\": 0.3, \"sector\": 0.1, \"location\": 0.1},\n  \"candidates\": [\n";
+
+    std::vector<int> candidateIds;
+    for (const auto& entry : allocator.candidates()) candidateIds.push_back(entry.first);
+    std::sort(candidateIds.begin(), candidateIds.end());
+    for (std::size_t ci = 0; ci < candidateIds.size(); ++ci) {
+        if (ci) candidateOut << ",\n";
+        const Candidate& candidate = allocator.candidates().at(candidateIds[ci]);
+        candidateOut << "    {\"id\": ";
+        writeString(candidateOut, std::to_string(candidate.id));
+        candidateOut << ", \"name\": ";
+        writeString(candidateOut, candidate.name);
+        candidateOut << ", \"skills\": ";
+        writeStringArray(candidateOut, skills(candidate.skills));
+        candidateOut << ", \"cgpa\": " << candidate.cgpa << ", \"sector\": ";
+        writeString(candidateOut, candidate.sector);
+        candidateOut << ", \"location\": ";
+        writeString(candidateOut, candidate.location);
+        candidateOut << ", \"allocation\": {\"status\": ";
+        const bool matched = candidate.matchedCompany != -1;
+        writeString(candidateOut, matched ? "matched" : "unmatched");
+        if (matched) {
+            const auto rankIt = std::find(candidate.preferenceList.begin(), candidate.preferenceList.end(), candidate.matchedCompany);
+            const std::size_t rank = static_cast<std::size_t>(rankIt - candidate.preferenceList.begin()) + 1;
+            candidateOut << ", \"company_id\": ";
+            writeString(candidateOut, std::to_string(candidate.matchedCompany));
+            candidateOut << ", \"preference_rank\": " << rank
+                         << ", \"score\": " << allocator.scoreFor(candidate.id, candidate.matchedCompany);
+        }
+        candidateOut << "}, \"top_choices\": [";
+
+        const auto count = candidate.preferenceList.size();
+        std::size_t emitted = 0;
+        for (std::size_t pi = 0; pi < count; ++pi) {
+            const int companyId = candidate.preferenceList[pi];
+            if (pi >= topK && (!matched || companyId != candidate.matchedCompany)) continue;
+            const Company& company = allocator.companies().at(companyId);
+            const ScoreBreakdown breakdown = scoreBreakdown(candidate, company);
+            const double cutoff = allocator.cutoffFor(companyId);
+            std::string outcome;
+            if (companyId == candidate.matchedCompany) outcome = "matched";
+            else if (matched && pi > static_cast<std::size_t>(std::find(candidate.preferenceList.begin(), candidate.preferenceList.end(), candidate.matchedCompany) - candidate.preferenceList.begin())) outcome = "not_reached";
+            else if (cutoff >= 0.0 && breakdown.total <= cutoff) outcome = "lost_seat";
+            else outcome = "not_reached";
+
+            if (emitted++) candidateOut << ", ";
+            candidateOut << "{\"company_id\": ";
+            writeString(candidateOut, std::to_string(company.id));
+            candidateOut << ", \"company_name\": ";
+            writeString(candidateOut, company.name);
+            candidateOut << ", \"preference_rank\": " << (pi + 1)
+                         << ", \"breakdown\": {\"skills\": " << breakdown.skills
+                         << ", \"cgpa\": " << breakdown.cgpa
+                         << ", \"sector\": " << breakdown.sector
+                         << ", \"location\": " << breakdown.location
+                         << ", \"total\": " << breakdown.total << "}, \"matched_skills\": ";
+            writeStringArray(candidateOut, breakdown.matchedSkills);
+            candidateOut << ", \"missing_skills\": ";
+            writeStringArray(candidateOut, breakdown.missingSkills);
+            candidateOut << ", \"outcome\": ";
+            writeString(candidateOut, outcome);
+            candidateOut << ", \"company_cutoff_score\": ";
+            if (cutoff < 0.0) candidateOut << "null";
+            else candidateOut << cutoff;
+            candidateOut << '}';
+        }
+        candidateOut << "]}";
+    }
+    candidateOut << "\n  ]\n}\n";
+
+    std::vector<int> companyIds;
+    for (const auto& entry : allocator.companies()) companyIds.push_back(entry.first);
+    std::sort(companyIds.begin(), companyIds.end());
+    companyOut << "{\n  \"schema_version\": 1,\n  \"companies\": [\n";
+    for (std::size_t i = 0; i < companyIds.size(); ++i) {
+        if (i) companyOut << ",\n";
+        const Company& company = allocator.companies().at(companyIds[i]);
+        const double cutoff = allocator.cutoffFor(company.id);
+        companyOut << "    {\"id\": ";
+        writeString(companyOut, std::to_string(company.id));
+        companyOut << ", \"name\": ";
+        writeString(companyOut, company.name);
+        companyOut << ", \"required_skills\": ";
+        writeStringArray(companyOut, skills(company.requiredSkills));
+        companyOut << ", \"seats\": " << company.seats
+                   << ", \"seats_filled\": " << company.seatsFilled() << ", \"sector\": ";
+        writeString(companyOut, company.sector);
+        companyOut << ", \"location\": ";
+        writeString(companyOut, company.location);
+        companyOut << ", \"cutoff_score\": ";
+        if (cutoff < 0.0) companyOut << "null";
+        else companyOut << cutoff;
+        companyOut << '}';
+    }
+    companyOut << "\n  ]\n}\n";
+}

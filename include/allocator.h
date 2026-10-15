@@ -15,6 +15,10 @@ public:
 
     void printResults() const;
     void exportResults(const std::string& path) const;
+    const std::unordered_map<int, Candidate>& candidates() const { return candidates_; }
+    const std::unordered_map<int, Company>& companies() const { return companies_; }
+    double scoreFor(int candidateId, int companyId) const;
+    double cutoffFor(int companyId) const;
 
 private:
     std::unordered_map<int, Candidate>& candidates_;
