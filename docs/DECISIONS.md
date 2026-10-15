@@ -55,3 +55,15 @@ Social Media, Statistics, Supply Chain.
   less than or equal to that cutoff. Equality is included because the allocator
   rejects a challenger unless its score is strictly greater than the weakest
   holder.
+
+## Phase 3: Python service skeleton
+
+- The service validates schema version 1 exports with Pydantic and keeps the
+  parsed data in memory. If exports are absent, the service still starts and
+  reports `exports_unavailable` at `/health`; candidate routes return a clear
+  503 until exports are created or reloaded.
+- Skill-gap ranking and outcome summaries are deterministic and use exported
+  values. Sector filtering adds every company in that sector to the candidate's
+  exported top choices.
+- Embeddings, retrieval, chat, and `/admin/reindex` are deferred to their
+  specified later phases.

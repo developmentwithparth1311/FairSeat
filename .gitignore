@@ -9,3 +9,6 @@ allocator_app
 .env
 .index/
 exports/*.json
+__pycache__/
+.pytest_cache/
+.venv/
