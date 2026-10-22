@@ -84,7 +84,10 @@ void exportExplanationData(const Allocator& allocator,
     companyOut.imbue(std::locale::classic());
     candidateOut << std::fixed << std::setprecision(1);
     companyOut << std::fixed << std::setprecision(1);
-    candidateOut << "{\n  \"schema_version\": 1,\n  \"generated_at\": ";
+    candidateOut << "{\n  \"schema_version\": 2,\n  \"policy_version\": \"prototype-score-v1\",\n"
+                    "  \"algorithm\": \"candidate-proposing-deferred-acceptance\",\n"
+                    "  \"tie_break_policy\": \"candidate order: submitted list, otherwise score descending then company ID ascending; company order: score descending then candidate ID ascending\",\n"
+                    "  \"generated_at\": ";
     writeString(candidateOut, generatedAtUtc());
     candidateOut << ",\n  \"scoring_weights\": {\"skills\": 0.5, \"cgpa\": 0.3, \"sector\": 0.1, \"location\": 0.1},\n  \"candidates\": [\n";
 
@@ -115,6 +118,10 @@ void exportExplanationData(const Allocator& allocator,
             candidateOut << ", \"preference_rank\": " << rank
                          << ", \"score\": " << allocator.scoreFor(candidate.id, candidate.matchedCompany);
         }
+        if (!matched) {
+            candidateOut << ", \"reason_code\": ";
+            writeString(candidateOut, allocator.unmatchedReason(candidate.id));
+        }
         candidateOut << "}, \"top_choices\": [";
 
         const auto count = candidate.preferenceList.size();
@@ -128,7 +135,7 @@ void exportExplanationData(const Allocator& allocator,
             std::string outcome;
             if (companyId == candidate.matchedCompany) outcome = "matched";
             else if (matched && pi > static_cast<std::size_t>(std::find(candidate.preferenceList.begin(), candidate.preferenceList.end(), candidate.matchedCompany) - candidate.preferenceList.begin())) outcome = "not_reached";
-            else if (cutoff && breakdown.total <= *cutoff) outcome = "lost_seat";
+            else if (cutoff && !allocator.companyWouldPrefer(companyId, breakdown.total, candidate.id)) outcome = "lost_seat";
             else outcome = "not_reached";
 
             if (emitted++) candidateOut << ", ";
@@ -147,6 +154,11 @@ void exportExplanationData(const Allocator& allocator,
             writeStringArray(candidateOut, breakdown.missingSkills);
             candidateOut << ", \"outcome\": ";
             writeString(candidateOut, outcome);
+            candidateOut << ", \"reason_code\": ";
+            if (outcome == "matched") writeString(candidateOut, "assigned_by_allocator");
+            else if (outcome == "lost_seat") writeString(candidateOut, "seat_held_by_higher_company_priority");
+            else if (matched) writeString(candidateOut, "lower_than_final_assignment_preference");
+            else writeString(candidateOut, "not_selected_by_company_priority");
             candidateOut << ", \"company_cutoff_score\": ";
             if (!cutoff) candidateOut << "null";
             else candidateOut << *cutoff;
@@ -154,12 +166,32 @@ void exportExplanationData(const Allocator& allocator,
         }
         candidateOut << "]}";
     }
-    candidateOut << "\n  ]\n}\n";
+    candidateOut << "\n  ],\n  \"allocation_trace\": [";
+    const auto& trace = allocator.allocationTrace();
+    for (std::size_t i = 0; i < trace.size(); ++i) {
+        if (i) candidateOut << ",";
+        const auto& event = trace[i];
+        candidateOut << "\n    {\"sequence\": " << event.sequence << ", \"type\": ";
+        writeString(candidateOut, event.type);
+        candidateOut << ", \"candidate_id\": ";
+        writeString(candidateOut, std::to_string(event.candidateId));
+        candidateOut << ", \"company_id\": ";
+        if (event.companyId < 0) candidateOut << "null";
+        else writeString(candidateOut, std::to_string(event.companyId));
+        candidateOut << ", \"score\": " << event.score << ", \"displaced_candidate_id\": ";
+        if (event.displacedCandidateId < 0) candidateOut << "null";
+        else writeString(candidateOut, std::to_string(event.displacedCandidateId));
+        candidateOut << ", \"reason_code\": ";
+        writeString(candidateOut, event.reasonCode);
+        candidateOut << '}';
+    }
+    if (!trace.empty()) candidateOut << '\n' << "  ";
+    candidateOut << "]\n}\n";
 
     std::vector<int> companyIds;
     for (const auto& entry : allocator.companies()) companyIds.push_back(entry.first);
     std::sort(companyIds.begin(), companyIds.end());
-    companyOut << "{\n  \"schema_version\": 1,\n  \"companies\": [\n";
+    companyOut << "{\n  \"schema_version\": 2,\n  \"companies\": [\n";
     for (std::size_t i = 0; i < companyIds.size(); ++i) {
         if (i) companyOut << ",\n";
         const Company& company = allocator.companies().at(companyIds[i]);
