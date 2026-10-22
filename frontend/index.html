@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f5f7fa" />
+    <title>Stable Allocation Engine</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Stable Allocation Engine home">
+        <span class="brand-mark" aria-hidden="true">SA</span>
+        <span><strong>Stable Allocation Engine</strong><small>Matching, explained</small></span>
+      </a>
+      <div class="header-meta">
+        <span id="connection-status" class="status-pill status-pending">Connecting</span>
+        <span class="demo-pill">Local demo</span>
+      </div>
+    </header>
+
+    <main id="main" class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">CANDIDATE TO OPPORTUNITY MATCHING</p>
+          <h1>See how every placement is made.</h1>
+          <p class="hero-copy">Load candidate and company CSVs, validate the data, and run the C++ allocation engine. Explore results, seat competition, and synthetic scenarios here.</p>
+        </div>
+        <div class="hero-note"><span aria-hidden="true">ⓘ</span><span>Demo data is synthetic. Policy rules are prototype settings, not official scheme decisions.</span></div>
+      </section>
+
+      <nav class="tabs" aria-label="Project views">
+        <button class="tab active" data-view="workspace" aria-current="page">Data & results</button>
+        <button class="tab" data-view="algorithm">Algorithm lab</button>
+        <button class="tab" data-view="fairness">Fairness & sensitivity</button>
+      </nav>
+
+      <section id="workspace-view" class="view active">
+        <section class="card input-card" aria-labelledby="input-heading">
+          <div class="section-heading">
+            <div><p class="eyebrow">STEP 1 · INPUT</p><h2 id="input-heading">Review your data</h2></div>
+            <span id="dataset-badge" class="dataset-badge">No dataset loaded</span>
+          </div>
+          <p class="muted">Use the included synthetic sample or select your own CSV files. The engine checks headers, values, references, and capacities before it runs.</p>
+          <div class="input-actions">
+            <button id="load-sample" class="button button-secondary">Load synthetic sample</button>
+            <label class="file-picker">Choose candidates CSV<input id="candidate-file" type="file" accept=".csv,text/csv" /></label>
+            <label class="file-picker">Choose companies CSV<input id="company-file" type="file" accept=".csv,text/csv" /></label>
+            <span id="file-status" class="muted small" aria-live="polite"></span>
+          </div>
+          <label class="check-label data-classification"><input id="synthetic-data" type="checkbox" checked /> This dataset contains synthetic/demo records only</label>
+          <div class="csv-grid">
+            <label class="csv-field"><span>Candidate records</span><textarea id="candidates-csv" spellcheck="false" aria-label="Candidate CSV data" placeholder="Candidate CSV contents"></textarea></label>
+            <label class="csv-field"><span>Company opportunities</span><textarea id="companies-csv" spellcheck="false" aria-label="Company CSV data" placeholder="Company CSV contents"></textarea></label>
+          </div>
+          <div class="validation-row">
+            <button id="validate-button" class="button button-secondary">Validate & preview</button>
+            <p id="validation-message" class="validation-message" role="status" aria-live="polite">Load sample data or choose both CSV files.</p>
+            <button id="run-button" class="button button-primary" disabled>Run allocation <span aria-hidden="true">→</span></button>
+          </div>
+          <div id="preview-area" class="preview-area" hidden>
+            <div class="preview-title"><strong>Validation passed</strong><span id="preview-counts" class="muted"></span></div>
+            <div class="preview-grid"><div><h3>Candidate preview</h3><div id="candidate-preview" class="preview-table-wrap"></div></div><div><h3>Opportunity preview</h3><div id="company-preview" class="preview-table-wrap"></div></div></div>
+          </div>
+        </section>
+
+        <section id="results-section" class="results-section" hidden aria-labelledby="results-heading">
+          <div class="section-heading result-heading">
+            <div><p class="eyebrow">STEP 2 · ALLOCATION</p><h2 id="results-heading">Allocation overview</h2></div>
+            <div class="run-meta"><span id="policy-label"></span><span id="dataset-label"></span></div>
+          </div>
+          <div id="metric-cards" class="metric-grid"></div>
+          <div class="results-grid">
+            <section class="card table-card" aria-labelledby="candidate-table-heading">
+              <div class="card-heading"><div><h3 id="candidate-table-heading">Candidate outcomes</h3><p class="muted small">Select a row to inspect its result.</p></div></div>
+              <div class="filters">
+                <label class="search-box"><span class="visually-hidden">Search candidates</span><input id="candidate-search" type="search" placeholder="Search by name or ID" /></label>
+                <select id="sector-filter" aria-label="Filter by sector"><option value="">All sectors</option></select>
+                <select id="outcome-filter" aria-label="Filter by outcome"><option value="">All outcomes</option><option value="matched">Matched</option><option value="unmatched">Unmatched</option></select>
+              </div>
+              <div class="table-wrap"><table><thead><tr><th scope="col">Candidate</th><th scope="col">Sector</th><th scope="col">Location</th><th scope="col">Outcome</th><th scope="col">Score</th></tr></thead><tbody id="candidate-rows"></tbody></table></div>
+            </section>
+            <aside id="candidate-detail" class="card detail-card" aria-live="polite"><div class="empty-state"><span class="empty-icon" aria-hidden="true">↗</span><h3>Select a candidate</h3><p>See their assignment, ranked options, fit breakdown, and reason codes.</p></div></aside>
+          </div>
+          <section class="card companies-card" aria-labelledby="companies-heading"><div class="card-heading"><div><h3 id="companies-heading">Opportunity capacity</h3><p class="muted small">Filled seats and remaining capacity after this run.</p></div></div><div id="company-cards" class="company-grid"></div></section>
+        </section>
+      </section>
+
+      <section id="algorithm-view" class="view" hidden>
+        <div class="section-heading"><div><p class="eyebrow">PHASE 2 · DATA STRUCTURES</p><h2>Algorithm lab</h2></div><span id="trace-count" class="dataset-badge">Run an allocation to load trace</span></div>
+        <div class="algorithm-grid">
+          <section class="card trace-card">
+            <div class="step-controls"><button id="trace-prev" class="icon-button" aria-label="Previous trace event">←</button><div class="step-position"><strong id="trace-position">No trace yet</strong><span id="trace-progress" class="muted small"></span></div><button id="trace-next" class="icon-button" aria-label="Next trace event">→</button></div>
+            <input id="trace-slider" class="trace-slider" type="range" min="0" max="0" value="0" aria-label="Allocation trace position" disabled />
+            <div id="trace-event" class="trace-event empty-state"><h3>Run the allocator to inspect its trace</h3><p>Competition and displacement events will appear here.</p></div>
+            <div class="trace-tools"><button id="jump-displacement" class="button button-secondary" disabled>Jump to next displacement</button><label class="check-label"><input id="trace-filter" type="checkbox" /> Show key events only</label></div>
+          </section>
+          <section class="card state-card"><div class="card-heading"><div><h3>State at this step</h3><p class="muted small">Replayed from the recorded queue and heap events.</p></div></div><div><h4>Proposal queue</h4><div id="trace-queue" class="token-list empty-note">No trace loaded</div></div><div class="heap-list"><h4>Company seat holders</h4><div id="trace-heaps" class="heap-grid"></div></div></section>
+        </div>
+        <section class="card operations-card"><div class="card-heading"><div><h3>Operations in this run</h3><p class="muted small">Counts come from the allocator export.</p></div></div><div id="operation-cards" class="operation-grid"></div><p class="complexity-note"><strong>Complexity note:</strong> each acceptable edge receives at most one proposal. Queue work is amortized O(1); a company heap update is O(log k), where k is that company's seat capacity. This run's counters describe this input, not a time guarantee.</p></section>
+      </section>
+
+      <section id="fairness-view" class="view" hidden>
+        <div class="section-heading"><div><p class="eyebrow">PHASE 3 · SYNTHETIC ONLY</p><h2>Fairness & sensitivity</h2></div><span class="dataset-badge">Seed 25033 · 400 candidates</span></div>
+        <div class="callout"><span aria-hidden="true">ⓘ</span><p>This report uses synthetic A/B labels held outside candidate records. It compares policy scenarios; it does not use protected attributes or establish fairness.</p></div>
+        <section class="card scenario-card"><div class="card-heading"><div><h3>What changes when policy settings change?</h3><p class="muted small">Scenario output is generated by the C++ allocator using a fixed random seed.</p></div><button id="load-scenarios" class="button button-secondary">Load scenario report</button></div><p id="scenario-message" class="muted" role="status">Load the seeded report to compare allocation rates and assignment changes.</p><div id="scenario-results" hidden><div id="scenario-bars" class="scenario-bars"></div><div class="table-wrap"><table><thead><tr><th>Scenario</th><th>Cohort</th><th>Eligible</th><th>Allocated</th><th>Unmatched</th><th>Average score</th><th>Assignments changed</th><th>Seats used</th></tr></thead><tbody id="scenario-rows"></tbody></table></div></div></section>
+        <p class="footnote">Metrics are descriptive diagnostics for small synthetic data. Actual policy requirements, demographic data authorization, and official rules have not been verified.</p>
+      </section>
+
+      <footer class="footer"><span>Stable Allocation Engine</span><span>Candidate-proposing deferred acceptance · C++ engine</span></footer>
+    </main>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
