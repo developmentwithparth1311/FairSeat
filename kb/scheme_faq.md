@@ -1,24 +1,39 @@
-> TODO: VERIFY AGAINST OFFICIAL SOURCE
+# PM Internship Scheme: verified source notes
 
-# PM Internship Scheme FAQ
+**Knowledge check date:** 2026-10-22
 
-This file is a placeholder. It is not an authoritative source and must be
-checked against the official scheme website before any public demonstration.
+**Scope:** Public, dated notices for the PM Internship Scheme (PMIS). These notes are not a complete or legally authoritative rulebook. Check the linked PMIS portal and its latest notices before acting.
 
-## Who is eligible?
+## Current update published by MCA
 
-TODO: Add only eligibility details verified against an official source.
+The Ministry of Corporate Affairs announced on 22 April 2026 that final-year undergraduate and postgraduate students can apply during the pilot phase. Applicants in this category must still meet the other applicable criteria and submit an institution-issued no-objection certificate confirming that the internship will not interfere with academic requirements. The notice lists Heads of Department, Deans, Principals, and Training & Placement Officers as authorized signatories.
 
-## What is the internship duration or stipend?
+The same notice says applicants aged 18–25 can apply and reports minimum financial assistance of ₹9,000 per month. The notice does not detail every payment condition or all eligibility rules; do not infer them from this summary.
 
-TODO: Add duration and stipend only after official verification. No amounts or
-dates are asserted in this placeholder.
+**Source:** Ministry of Corporate Affairs, Press Information Bureau, “MCA expands eligibility criteria of the Prime Minister Internship Scheme (PMIS) to include final-year graduate and post graduate students,” published 2026-04-22.
 
-## How do candidates apply?
+https://www.pib.gov.in/PressReleasePage.aspx?PRID=2254498&lang=2&reg=3
 
-TODO: Add the verified application route and steps from an official source.
+## Scheme portal
 
-## Where should candidates confirm scheme details?
+The application portal and current opportunity information are available at the official PM Internship Scheme portal. The portal's active round, available internships, application windows, and individual opportunity terms can change. This assistant does not reproduce a live listing.
 
-Check the official PM Internship Scheme website and current official notices.
-This assistant cannot confirm unverified policy details.
+**Source:** Ministry of Corporate Affairs, PM Internship Scheme portal.
+
+https://pminternship.mca.gov.in/
+
+## Older pilot information
+
+PIB's 12 October 2024 explainer describes the initial FY 2024–25 pilot. Its eligibility ages, education exclusions, stipend, duration, and other pilot details are historical and may have been amended. Do not use those 2024 details as current rules where they conflict with later MCA notices.
+
+**Historical source:** Press Information Bureau, “A Pathway to Professional Growth: PM’s Internship Scheme,” published 2024-10-12.
+
+https://www.pib.gov.in/PressNoteDetails.aspx?ModuleId=3&NoteId=153275&lang=2&reg=48
+
+## What this assistant can and cannot confirm
+
+- It can summarize the dated 2026 update above when that source is retrieved, and it must cite the knowledge label supplied by the service.
+- It cannot determine whether a person qualifies. The full set of current criteria and application conditions must be checked on the official portal and current notices.
+- It cannot confirm live openings, deadlines, selection status, company choices, or an individual's application outcome.
+- It cannot change a candidate profile, allocation, score, or seat.
+- SAE scores and assignments are outputs of this educational prototype; they are not official PMIS decisions.

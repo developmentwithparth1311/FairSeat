@@ -39,7 +39,7 @@ def is_out_of_scope(message: str, known_skills: set[str] | None = None) -> bool:
     lowered = message.lower()
     coding_request = re.search(r"\b(write|debug|fix|review|generate)\b.{0,30}\b(code|script|function|program|bug)\b", lowered)
     allocation_terms = re.search(
-        r"intern(ship)?|allocation|allocat|match|company|seat|score|candidate|scheme|stipend|eligib|deadline|cgpa|sector|location|profile|learn|improv|skill|missing|preference|cutoff|first choice|placed|result|unmatched|why.*get|why.*didn.t",
+        r"intern(ship)?|allocation|allocat|match|company|seat|score|candidate|scheme|stipend|eligib|deadline|cgpa|sector|location|profile|learn|improv|skill|missing|preference|cutoff|first choice|placed|result|unmatched|notice|assistance|age|why.*get|why.*didn.t",
         lowered,
     )
     if coding_request and not re.search(r"intern|allocation|company|skill|profile|match", lowered):
@@ -58,5 +58,5 @@ def unverified_numbers(answer: str, facts: dict, retrieved: list) -> list[str]:
     found = set(re.findall(r"(?<![A-Za-z])\d+(?:\.\d+)?", safe_text))
     unverified = sorted(found - allowed, key=lambda value: (float(value), value))
     if unverified:
-        logger.warning("Assistant answer included unverified numbers: %s", unverified)
+        logger.warning("Assistant answer included %d unverified numeric token(s)", len(unverified))
     return unverified

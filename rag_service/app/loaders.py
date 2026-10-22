@@ -55,6 +55,9 @@ class Candidate(BaseModel):
     cgpa: float
     sector: str
     location: str
+    qualifications: list[str] = Field(default_factory=list)
+    preferred_locations: list[str] = Field(default_factory=list)
+    sector_interests: list[str] = Field(default_factory=list)
     allocation: Allocation
     top_choices: list[TopChoice] = Field(default_factory=list)
 
@@ -68,6 +71,9 @@ class CandidateExport(BaseModel):
     policy_version: str | None = None
     algorithm: str | None = None
     tie_break_policy: str | None = None
+    policy_rules: dict[str, Any] = Field(default_factory=dict)
+    graph: dict[str, Any] = Field(default_factory=dict)
+    operation_counts: dict[str, int] = Field(default_factory=dict)
     allocation_trace: list[AllocationTraceEvent] = Field(default_factory=list)
 
 
@@ -78,6 +84,7 @@ class Company(BaseModel):
     required_skills: list[str]
     seats: int
     seats_filled: int
+    required_qualifications: list[str] = Field(default_factory=list)
     sector: str
     location: str
     cutoff_score: float | None = None
@@ -124,8 +131,8 @@ def load_exports(export_dir: Path) -> ExportData:
     except ValidationError as exc:
         raise ExportLoadError(f"Invalid SAE export data: {exc}") from exc
 
-    if candidates.schema_version not in {1, 2} or companies.schema_version not in {1, 2}:
+    if candidates.schema_version not in {1, 2, 3} or companies.schema_version not in {1, 2, 3}:
         raise ExportLoadError(
-            "Unsupported SAE export schema_version; this service supports versions 1 and 2"
+            "Unsupported SAE export schema_version; this service supports versions 1, 2, and 3"
         )
     return ExportData(candidates_export=candidates, companies_export=companies)

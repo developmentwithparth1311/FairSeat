@@ -18,8 +18,12 @@ class Settings:
     llm_model: str = os.getenv("LLM_MODEL", "")
     llm_api_key: str = os.getenv("GEMINI_API_KEY", "")
     top_k_chunks: int = int(os.getenv("TOP_K_CHUNKS", "4"))
-    max_history_turns: int = int(os.getenv("MAX_HISTORY_TURNS", "6"))
+    max_history_turns: int = int(os.getenv("MAX_HISTORY_TURNS", "2"))
     min_similarity: float = float(os.getenv("MIN_SIMILARITY", "0.25"))
+    engine_runner_path: Path = Path(os.getenv("SAE_ENGINE_RUNNER_PATH", REPO_ROOT / "allocator_runner"))
+    engine_policy_path: Path = Path(os.getenv("SAE_POLICY_PATH", REPO_ROOT / "config" / "allocation_policy_v2.conf"))
+    admin_token: str = os.getenv("SAE_ADMIN_TOKEN", "")
+    allow_real_data: bool = os.getenv("SAE_ALLOW_REAL_DATA", "0").strip().lower() in {"1", "true", "yes"}
 
 
 settings = Settings()

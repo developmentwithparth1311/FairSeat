@@ -1,6 +1,9 @@
 import json
 import hashlib
+import asyncio
+from pathlib import Path
 
+import httpx
 import numpy as np
 
 from fastapi.testclient import TestClient
@@ -38,7 +41,7 @@ def test_loader_and_unsupported_schema(export_dir):
 
     path = export_dir / "companies.json"
     company_data = json.loads(path.read_text())
-    company_data["schema_version"] = 3
+    company_data["schema_version"] = 4
     path.write_text(json.dumps(company_data))
     with pytest.raises(ExportLoadError, match="schema_version"):
         load_exports(export_dir)
@@ -52,12 +55,23 @@ def test_loader_accepts_v2_exports_with_allocation_trace(export_dir):
         "policy_version": "prototype-score-v1",
         "algorithm": "candidate-proposing-deferred-acceptance",
         "tie_break_policy": "candidate ID ascending",
+        "policy_rules": {
+            "qualification_requirement": "disabled",
+            "location_requirement": "disabled",
+            "sector_requirement": "disabled",
+            "exclude_prior_participants": False,
+        },
+        "graph": {"candidate_vertices": 1, "company_vertices": 3, "acceptable_edges": 3, "density": 1.0},
+        "operation_counts": {"proposals": 2, "queue_pushes": 2, "queue_pops": 2},
         "allocation_trace": [{
             "sequence": 1, "type": "proposal", "candidate_id": "C001",
             "company_id": "CO1", "score": 74.3,
             "displaced_candidate_id": None, "reason_code": "candidate_proposes",
         }],
     })
+    candidate_data["candidates"][0]["qualifications"] = ["degree_a"]
+    candidate_data["candidates"][0]["preferred_locations"] = ["Pune"]
+    candidate_data["candidates"][0]["sector_interests"] = ["IT"]
     candidate_data["candidates"][0]["allocation"]["reason_code"] = "all_acceptable_opportunities_rejected"
     candidate_data["candidates"][0]["top_choices"][0]["reason_code"] = "seat_held_by_higher_company_priority"
     candidate_path.write_text(json.dumps(candidate_data))
@@ -65,12 +79,21 @@ def test_loader_accepts_v2_exports_with_allocation_trace(export_dir):
     company_path = export_dir / "companies.json"
     company_data = json.loads(company_path.read_text())
     company_data["schema_version"] = 2
+    company_data["companies"][0]["required_qualifications"] = ["degree_a"]
     company_path.write_text(json.dumps(company_data))
 
     data = load_exports(export_dir)
     assert data.candidates_export.algorithm == "candidate-proposing-deferred-acceptance"
     assert data.candidates_export.allocation_trace[0].reason_code == "candidate_proposes"
     assert data.candidates["C001"].allocation.reason_code == "all_acceptable_opportunities_rejected"
+    assert data.candidates["C001"].qualifications == ["degree_a"]
+    assert data.candidates_export.graph["acceptable_edges"] == 3
+
+    candidate_data["schema_version"] = 3
+    candidate_path.write_text(json.dumps(candidate_data))
+    company_data["schema_version"] = 3
+    company_path.write_text(json.dumps(company_data))
+    assert load_exports(export_dir).candidates_export.schema_version == 3
 
 
 def test_skill_aliases_unknowns_and_gap_tie_order(export_dir):
@@ -134,6 +157,66 @@ def test_api_health_summary_gap_and_unknown_candidate(export_dir):
     assert cors.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
+def test_phase6_end_to_end_demo_to_frontend_and_scenarios(export_dir):
+    """Exercise CSV input through the engine exports and the browser-facing API."""
+    config = Settings(
+        export_dir=export_dir,
+        kb_dir=export_dir / "kb",
+        llm_provider="mock",
+        llm_model="",
+        llm_api_key="",
+        allow_real_data=False,
+    )
+    client = TestClient(create_app(config))
+    fixture_dir = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "phase6"
+    candidates_csv = (fixture_dir / "candidates.csv").read_text()
+    companies_csv = (fixture_dir / "companies.csv").read_text()
+
+    homepage = client.get("/")
+    assert homepage.status_code == 200
+    assert "Stable Allocation Engine" in homepage.text
+    assert client.get("/static/app.js").status_code == 200
+
+    validation = client.post("/demo/validate", json={
+        "candidates_csv": candidates_csv,
+        "companies_csv": companies_csv,
+    })
+    assert validation.status_code == 200, validation.text
+    assert validation.json()["candidates"] == 3
+    assert validation.json()["companies"] == 3
+
+    allocation = client.post("/demo/run", json={
+        "candidates_csv": candidates_csv,
+        "companies_csv": companies_csv,
+        "dataset_name": "Phase 6 teaching scenario",
+        "synthetic": True,
+    })
+    assert allocation.status_code == 200, allocation.text
+    result = allocation.json()
+    assert result["summary"]["assigned"] == 2
+    assert result["summary"]["unmatched"] == 1
+    assert result["summary"]["seats_filled"] == 2
+    assert result["summary"]["total_seats"] == 3
+    outcomes = {candidate["name"]: candidate["allocation"] for candidate in result["candidates"]}
+    assert outcomes["Higher Priority"]["company_id"] == "10"
+    assert outcomes["Lower Priority"]["company_id"] == "20"
+    assert outcomes["Unmatched"]["status"] == "unmatched"
+    assert any(event["type"] == "displaced" for event in result["allocation_trace"])
+
+    state = client.get("/demo/state").json()
+    assert state["summary"] == result["summary"]
+    explanation = client.get("/candidates/1/summary")
+    assert explanation.status_code == 200
+    assert explanation.json()["status"] == "matched"
+
+    scenarios = client.get("/demo/scenarios")
+    assert scenarios.status_code == 200, scenarios.text
+    report = scenarios.json()
+    assert report["seed"] == 25033
+    assert report["synthetic"] is True
+    assert {row["scenario"] for row in report["rows"]} >= {"baseline", "skills_emphasis"}
+
+
 def test_prompt_contains_only_selected_candidate(export_dir):
     candidate_path = export_dir / "candidates.json"
     payload = json.loads(candidate_path.read_text())
@@ -146,7 +229,8 @@ def test_prompt_contains_only_selected_candidate(export_dir):
         data.candidates["C001"], SkillAnalyzer(data), "Why was I unmatched?", []
     )
     prompt = system + "\n" + "\n".join(message["content"] for message in messages)
-    assert "Asha Patil" in prompt
+    assert "Asha Patil" not in prompt
+    assert "C001" not in prompt
     assert "C002" not in prompt
     assert "Other Candidate" not in prompt
     assert prompt.index("CANDIDATE FACTS") < prompt.index("KNOWLEDGE")
@@ -238,6 +322,140 @@ def test_chat_uses_missing_skill_guide_and_returns_source(export_dir):
     assert "Learn Docker images" in response["answer"]
     assert "[KB-1]" in response["answer"]
     assert response["sources"][0]["path"] == "kb/skills/docker.md"
+
+
+def test_admin_routes_require_a_long_token(export_dir):
+    config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
+                      llm_provider="mock", llm_model="", llm_api_key="")
+    client = TestClient(create_app(config))
+    disabled = client.post("/admin/reload")
+    assert disabled.status_code == 503
+
+    config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
+                      llm_provider="mock", llm_model="", llm_api_key="",
+                      admin_token="s" * 40)
+    client = TestClient(create_app(config))
+    assert client.post("/admin/reload").status_code == 401
+    assert client.post("/admin/reload", headers={"x-admin-token": "wrong"}).status_code == 401
+    authorized = client.post("/admin/reload", headers={"x-admin-token": "s" * 40})
+    assert authorized.status_code == 200
+
+
+def test_real_candidate_allocation_is_off_by_default(export_dir):
+    config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
+                      llm_provider="mock", llm_model="", llm_api_key="")
+    response = TestClient(create_app(config)).post("/demo/run", json={
+        "candidates_csv": "id,name,skills,cgpa,sector,location\n1,Sample,SQL,8,IT,Pune\n",
+        "companies_csv": "id,name,required_skills,seats,sector,location\n1,Role,SQL,1,IT,Pune\n",
+        "dataset_name": "Uploaded candidate data",
+    })
+    assert response.status_code == 403
+    assert "Real candidate data is disabled" in response.json()["detail"]
+
+
+def test_health_discloses_provider_without_secrets(export_dir):
+    config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
+                      llm_provider="gemini", llm_model="gemini-test",
+                      llm_api_key="secret-test-key")
+    health = TestClient(create_app(config)).get("/health").json()
+    assert health["external_llm_processing"] is True
+    assert health["llm_provider_ready"] is True
+    assert "Google" in health["privacy_notice"]
+    assert "secret-test-key" not in str(health)
+
+
+def test_unverified_generated_numbers_are_suppressed(export_dir):
+    config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
+                      llm_provider="mock", llm_model="", llm_api_key="")
+    app = create_app(config)
+
+    class HallucinatingLLM:
+        def generate(self, system, messages):
+            return "Your official eligibility score is 999."
+
+    app.state.llm = HallucinatingLLM()
+    response = TestClient(app).post("/chat", json={
+        "candidate_id": "C001", "message": "How did my result work?", "debug": True
+    })
+    assert response.status_code == 200
+    payload = response.json()
+    assert "couldn't verify" in payload["answer"]
+    assert payload["unverified_numbers"] == ["999"]
+
+
+def test_mock_cites_verified_policy_fact(export_dir):
+    config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
+                      llm_provider="mock", llm_model="", llm_api_key="")
+    app = create_app(config)
+    faq_chunk = Chunk(
+        text=("The MCA notice published 22 April 2026 says applicants aged 18–25 may apply. "
+              "It includes final-year undergraduate and postgraduate students and reports "
+              "minimum financial assistance of ₹9,000 per month."),
+        source_path="scheme_faq.md", title="PM Internship Scheme: verified source notes",
+        section="Current update", type="faq", chunk_id="scheme_faq.md#1",
+    )
+
+    class StaticRetriever:
+        def retrieve(self, query, k=4):
+            del query, k
+            return [RetrievedChunk(label="KB-1", chunk=faq_chunk, score=1.0)]
+
+    app.state.retriever = StaticRetriever()
+    response = TestClient(app).post("/chat", json={
+        "candidate_id": "C001", "message": "What age and monthly assistance does the current notice state?"
+    })
+    assert response.status_code == 200
+    payload = response.json()
+    assert "18–25" in payload["answer"]
+    assert "₹9,000" in payload["answer"]
+    assert "[KB-1]" in payload["answer"]
+    assert payload["sources"][0]["title"] == "PM Internship Scheme: verified source notes"
+    assert payload["sources"][0]["urls"][0].startswith("https://www.pib.gov.in/")
+
+
+def test_non_loopback_peer_is_blocked(export_dir):
+    app = create_app(Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
+                              llm_provider="mock", llm_model="", llm_api_key=""))
+
+    async def request_from_remote_peer():
+        transport = httpx.ASGITransport(app=app, client=("203.0.113.8", 4123))
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            return await client.get("/health")
+
+    response = asyncio.run(request_from_remote_peer())
+    assert response.status_code == 403
+
+
+def test_chunked_request_body_limit_applies_without_content_length(export_dir):
+    app = create_app(Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
+                              llm_provider="mock", llm_model="", llm_api_key=""))
+
+    async def large_body():
+        yield b"x" * 1_100_000
+        yield b"y" * 1_100_000
+
+    async def send_chunked_body():
+        transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 1234))
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            return await client.post("/chat", content=large_body())
+
+    response = asyncio.run(send_chunked_body())
+    assert response.status_code == 413
+
+
+def test_chat_rate_limit(export_dir):
+    config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
+                      llm_provider="mock", llm_model="", llm_api_key="")
+    client = TestClient(create_app(config))
+    for _ in range(20):
+        response = client.post("/chat", json={
+            "candidate_id": "C001", "message": "How did my allocation turn out?"
+        })
+        assert response.status_code == 200
+    limited = client.post("/chat", json={
+        "candidate_id": "C001", "message": "How did my allocation turn out?"
+    })
+    assert limited.status_code == 429
 
 
 def test_mock_explains_matched_candidate_missing_first_choice(export_dir):

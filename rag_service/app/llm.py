@@ -34,11 +34,22 @@ class MockLLM:
             r"\[(KB-\d+): kb/([^\]]+)\] (.*?) — (.*?)\n(.*?)(?=\n\[KB-\d+:|\n\nCHAT HISTORY|\Z)",
             content, re.S,
         )
+        faq = next((entry for entry in knowledge_entries if entry[1].lower().endswith("scheme_faq.md")), None)
 
         if re.search(r"\b(move|change|switch|give me|put me|assign)\b", lowered):
             return "I can't change an allocation, score, or seat. You can improve your profile skills or contact the official process about profile updates."
 
-        if re.search(r"stipend|eligib|deadline|duration|application date|when does", lowered):
+        if re.search(r"stipend|eligib|deadline|duration|application date|when does|\bage\b|assistance|monthly", lowered):
+            if faq and re.search(r"age|final-year|minimum financial assistance|monthly", lowered):
+                text = faq[4]
+                if "18–25" in text and re.search(r"stipend|financial assistance|monthly|assistance", lowered):
+                    return (
+                        f"The MCA notice published 22 April 2026 says applicants aged 18–25 may apply; it also includes "
+                        f"final-year undergraduate and postgraduate students, subject to the notice's conditions. "
+                        f"It reports minimum financial assistance of ₹9,000 per month. Check the current official portal "
+                        f"for the complete criteria and round details [{faq[0]}]."
+                    )
+                return f"I couldn't verify that exact current rule from the retrieved source. Please check the latest official PMIS portal notice [{faq[0]}]."
             return "I don't know that scheme detail from verified knowledge in this assistant. Please check the official PM Internship Scheme website or current official notices."
 
         if re.search(r"skill|learn|improv|what should i study|missing", lowered):
@@ -149,7 +160,11 @@ class GeminiLLM:
                     raise LLMError(f"Gemini service returned HTTP {response.status_code}; please try again.")
                 if response.status_code >= 400:
                     raise LLMError(f"Gemini request was rejected (HTTP {response.status_code}); check the model and API settings.")
-                payload = response.json()
+                try:
+                    payload = response.json()
+                except ValueError as exc:
+                    logger.warning("Gemini returned malformed JSON")
+                    raise LLMError("The language service returned an unreadable response. Please try again later.") from exc
                 candidates = payload.get("candidates", [])
                 parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
                 text = "".join(part.get("text", "") for part in parts)
