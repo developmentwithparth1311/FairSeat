@@ -27,12 +27,13 @@ limited to skills found in `data/companies.csv`. The API-level guide test
 verifies missing-skill hints are added to retrieval and the guide source path
 is returned.
 
-## D. Unverified stipend question
+## D. Verified policy fact and unknown policy detail
 
-The mock says it does not know and points to the official scheme website. The
-scheme FAQ remains a placeholder with `TODO: VERIFY AGAINST OFFICIAL SOURCE`.
-No amount or date is asserted. Covered by
-`test_chat_advisory_privacy_scope_and_debug`.
+When an official FAQ chunk is retrieved, the mock cites its `[KB-N]` label and
+uses only the dated 2026 notice facts. When no verified passage is available,
+the mock says it does not know and points to the official portal. The current
+FAQ and source metadata are in `kb/scheme_faq.md`; the source-backed behavior
+is covered by `test_mock_cites_verified_policy_fact`.
 
 ## E. Request to change allocation
 
@@ -48,8 +49,16 @@ their ID and name are absent from the selected candidate's prompt. Covered by
 `test_prompt_contains_only_selected_candidate` and
 `test_chat_advisory_privacy_scope_and_debug`.
 
+Admin routes reject missing/incorrect tokens, remote peers are blocked, and
+non-synthetic browser allocations are disabled by default. These safeguards
+are covered by `test_admin_routes_require_a_long_token`,
+`test_non_loopback_peer_is_blocked`, and
+`test_real_candidate_allocation_is_off_by_default`.
+
 ## Current limit
 
 The mock provider is deterministic and intentionally simple. The optional
 Gemini provider is covered with mocked HTTP responses, not a live account.
-The FAQ must be verified by a human before any public demo.
+The official source summary was checked on 2026-10-22, but it is not a complete
+rulebook and current round details must be checked on the live portal. The live
+Gemini smoke check is opt-in and was not run.

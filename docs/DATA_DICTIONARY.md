@@ -1,61 +1,65 @@
-# Data Dictionary — Phase 0 Draft
+# Data Dictionary — Current Prototype Contract
 
-This document distinguishes the current CSV/export contract from proposed
-fields for a later contract. Proposed fields are design candidates, not yet
-accepted policy or implemented runtime behavior. The current C++ CSV reader is
-a simple comma-delimited parser; fields containing commas/quoted CSV values
-are not reliably supported today.
+This document describes the current CSV/export contract and distinguishes
+implemented prototype behavior from scheme rules that still need verification.
+The C++ CSV reader supports single-line quoted commas and escaped quotes.
 
 ## Current candidate input (`data/candidates.csv`)
 
 | Field | Type / format | Meaning today | Status | Notes |
 |---|---|---|---|---|
-| `id` | Integer | Candidate identifier | Current | Must be unique; duplicate IDs currently overwrite in the map. |
+| `id` | Integer | Candidate identifier | Current | Must be unique and non-negative; duplicate IDs are rejected. |
 | `name` | Text | Display name | Current | Personal data; synthetic in checked-in sample. |
 | `skills` | Semicolon-separated text | Candidate skill set | Current | Duplicates collapse in `std::set`; whitespace is trimmed at load; comparison is normalized later for scoring. |
-| `cgpa` | Decimal | CGPA on assumed 0–10 scale | Current assumption | No explicit range validation; contributes up to 30 points, but is not a hard eligibility rule. |
+| `cgpa` | Decimal | CGPA on assumed 0–10 scale | Current assumption | Validated from 0 to 10; contributes to score but is not a hard eligibility rule. |
 | `sector` | Text | Candidate's single sector label | Current | Exact string equality with company sector contributes 10 points; this is not a ranked sector-interest list. |
 | `location` | Text | Candidate's single location label | Current | Exact string equality with company location contributes 10 points; this is not an explicit location preference or relocation policy. |
 | `preferred_company_ids` | Optional semicolon-separated integer IDs | Ordered acceptable-company list when present | Phase 1 addition | Header with this column enables explicit order and defines the acceptable set. Empty cell means no acceptable companies. Absent column preserves legacy score-ranked behavior. |
+| `qualifications` | Optional semicolon-separated labels | Candidate credentials used only when the selected policy enables `all_required` | Phase 3 prototype field | Exact label matching; no official credential taxonomy is assumed. |
+| `preferred_locations` | Optional semicolon-separated labels | Candidate location choices; when non-empty, any listed match earns the location score | Phase 3 prototype field | Empty list falls back to legacy `location`; may be an opt-in hard filter in a scenario. |
+| `sector_interests` | Optional semicolon-separated labels | Candidate sector interests; when non-empty, any listed match earns the sector score | Phase 3 prototype field | Empty list falls back to legacy `sector`; may be an opt-in hard filter in a scenario. |
+| `prior_participation` | Optional `true`, `false`, `1`, or `0` | Optional profile value | Phase 3 prototype field | Ignored by default and never exported per candidate; exclusion has no verified scheme basis. |
 
 ## Current company input (`data/companies.csv`)
 
 | Field | Type / format | Meaning today | Status | Notes |
 |---|---|---|---|---|
-| `id` | Integer | Company/opportunity identifier | Current | Must be unique; duplicate IDs currently overwrite in the map. |
+| `id` | Integer | Company/opportunity identifier | Current | Must be unique and non-negative; duplicate IDs are rejected. |
 | `name` | Text | Display name | Current | Synthetic in checked-in sample. |
 | `required_skills` | Semicolon-separated text | Skills used in overlap score | Current | Despite the name, missing skills do not make a pair ineligible today. |
-| `seats` | Integer | Maximum holders | Current | No explicit positive-capacity validation yet. |
+| `seats` | Integer | Maximum holders | Current | Must be positive; this is the capacity used by the allocator. |
 | `sector` | Text | Company sector label | Current | Exact equality contributes to score. |
 | `location` | Text | Company location label | Current | Exact equality contributes to score. |
+| `required_qualifications` | Optional semicolon-separated labels | Credentials used by the opt-in `all_required` qualification rule | Phase 3 prototype field | Exact labels; no official equivalency is inferred. |
 
 ## Current scoring contract
 
 | Component | Weight | Current interpretation |
 |---|---:|---|
 | Skills | 0.50 | Required-skill overlap divided by number of company skills; empty requirements score full skill credit. |
-| CGPA | 0.30 | `min(cgpa / 10, 1)`; negative values are not explicitly rejected. |
-| Sector | 0.10 | Exact string equality. |
-| Location | 0.10 | Exact string equality. |
+| CGPA | 0.30 | `min(cgpa / 10, 1)`; loader validates the 0–10 range. |
+| Sector | 0.10 | Exact company-sector match against `sector_interests`, or legacy `sector` when interests are empty. |
+| Location | 0.10 | Exact company-location match against `preferred_locations`, or legacy `location` when preferences are empty. |
 
-The total is a 0–100 weighted score. Candidate preferences are generated by
-sorting all companies by descending score, with ascending company ID as the
-candidate-side tie-break. The allocator does not currently filter ineligible
-pairs. When a company is full, its current weakest score is at the top of a
-min-heap; a challenger displaces the holder only when the challenger's score
-is strictly greater. Equal-score allocation can therefore depend on input
-iteration/proposal order and should be made deterministic in Phase 1.
+The weights are loaded from `config/allocation_policy_v2.conf`; they must be
+non-negative and sum to 1.0. The checked-in policy leaves qualification,
+location, sector, and prior-participation filters disabled. Candidate choices
+are generated by sorting eligible companies by score descending, with
+ascending company ID as the tie-break. Explicit preference lists retain their
+order and are filtered only by enabled policy requirements.
 
-## Current JSON export schema (version 1)
+## JSON export (schema version 3; Python also accepts versions 1 and 2)
 
 ### `exports/candidates.json`
 
-Top-level fields (schema v2): `schema_version`, `policy_version`, `algorithm`,
-`tie_break_policy`, `generated_at`, `scoring_weights`, `candidates`, and
-`allocation_trace`. Schema v1 remains readable by the Python service.
+Top-level fields: `schema_version`, `policy_version`, `algorithm`,
+`policy_rules`, `tie_break_policy`, `generated_at`, `scoring_weights`, graph
+summary, operation counts, candidates, and `allocation_trace`.
 
-Candidate fields: `id` (stringified integer), `name`, `skills` (array),
-`cgpa`, `sector`, `location`, `allocation`, `top_choices`.
+Candidate fields include `id` (stringified integer), `name`, `skills`, `cgpa`,
+`sector`, `location`, `qualifications`, `preferred_locations`,
+`sector_interests`, `allocation`, and `top_choices`. Prior participation is
+deliberately omitted from individual exports.
 
 `allocation` contains `status`; when matched it also contains `company_id`,
 `preference_rank`, and `score`; unmatched results include a `reason_code`.
@@ -70,19 +74,17 @@ Top-level fields: `schema_version`, `companies`. Each company has `id`, `name`,
 `required_skills`, `seats`, `seats_filled`, `sector`, `location`, and nullable
 `cutoff_score`.
 
-## Proposed candidate input fields for a future schema (not implemented)
+## Still awaiting policy or data verification
 
 | Proposed field | Suggested type | Intended use | Sensitivity / decision needed |
 |---|---|---|---|
-| `preferred_opportunity_ids` | Ordered array of IDs | Candidate's explicit preference order | Current CSV equivalent is `preferred_company_ids`; JSON/API input remains future work. |
-| `acceptable_locations` | Ordered array of location IDs/labels | Candidate location constraints/preferences | Need rule for remote, multiple locations, and mandatory vs preferred. |
-| `sector_interests` | Ordered array of controlled sector IDs | Explicit interests | Need rule for interests vs current sector labels. |
-| `qualification` | Object, e.g. level/field/credential identifiers | Evaluate role requirements without treating GPA as a proxy for all qualification | Needs official and opportunity-side qualification semantics. |
-| `prior_participation` | `true`, `false`, or `null` | Potential scheme-policy input | Do not use until official rule, data source, and effect are verified. |
+| Remote/hybrid and multiple locations | Controlled work-mode/location taxonomy | Location requirements and preferences | Current labels use exact text only; remote/hybrid semantics remain undefined. |
+| Official qualification rules | Verified credential taxonomy and opportunity requirements | Hard eligibility where documented | Prototype supports exact-label matching only when manually enabled. |
+| Prior participation | Verified source and official effect | Potential scheme-policy input | Stored optionally in CSV, ignored by default, never exported per candidate. |
 | `district_code` / district classification | Controlled code, optional | Researching geographic representation scenarios | Could be sensitive or identifying; define necessity, source, access, and aggregation first. |
 | `affirmative_action_attributes` | Not specified yet | Only if an approved official allocation rule requires it | Do not collect or use at Phase 0; requires policy and privacy review. |
 
-## Proposed opportunity input fields for a future schema (not implemented)
+## Still awaiting policy or data verification for opportunities
 
 | Proposed field | Suggested type | Intended use | Decision needed |
 |---|---|---|---|

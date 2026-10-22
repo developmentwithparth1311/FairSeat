@@ -45,12 +45,14 @@ Known gaps to address before claiming full SIH coverage:
 - Current scoring combines skill overlap, CGPA, sector, and location. A score
   is a ranking mechanism; it is not a learned AI model and does not by itself
   guarantee fairness or maximize total assignments.
-- There is no graphical frontend yet.
-- There is no verified, authoritative policy source in the scheme FAQ.
+- The local browser prototype is implemented; it is not a production deployment.
+- The FAQ contains dated official source notes for a limited set of PMIS facts;
+  it is not a complete rulebook and there is no live portal integration.
 - Gemini HTTP behavior has mocked tests, but a live key/model call and a full
   local end-to-end run still need to be demonstrated.
-- Admin API routes currently have no authentication and are for local
-  prototype use.
+- The service rejects non-loopback peers and requires a long admin token for
+  reload/reindex. It remains a local single-operator prototype without
+  individual candidate authentication.
 
 ## 2.1 Build sequence and phase gates
 
@@ -63,11 +65,11 @@ the UI is built around them.
 |---|---|---|---|---|
 | 0 | Baseline and requirements | Confirm current behavior, map SIH criteria, draft data contract and demo fixtures | Existing repository | Complete |
 | 1 | Matching model and correctness | Explicit acceptable lists, rankings, deterministic ties, allocation explanations, correctness checks | Phase 0 contract | Complete |
-| 2 | Data Structures lab | Bipartite graph, trace events, operation counters, complexity and benchmark report | Phase 1 allocation model | Planned |
-| 3 | SIH criteria and fairness simulation | Add missing profile fields and policy-driven scenario metrics | Phase 0 policy map; Phase 1 contract | Planned |
-| 4 | Frontend prototype | Dashboard, inputs, run flow, results/explanations, algorithm lab | Phases 1–3 APIs and output schema | Planned |
-| 5 | Assistant, policy sources, and safeguards | Verified knowledge, advisory chat, access/data handling controls | Phase 4 data flows; verified sources | Planned |
-| 6 | Integration, evaluation, and presentation | End-to-end evidence, benchmark comparison, course report and demo rehearsal | Phases 1–5 | Planned |
+| 2 | Data Structures lab | Bipartite graph, trace events, operation counters, complexity and benchmark report | Phase 1 allocation model | Complete |
+| 3 | SIH criteria and fairness simulation | Add missing profile fields and policy-driven scenario metrics | Phase 0 policy map; Phase 1 contract | Complete |
+| 4 | Frontend prototype | Dashboard, inputs, run flow, results/explanations, algorithm lab | Phases 1–3 APIs and output schema | Complete |
+| 5 | Assistant, policy sources, and safeguards | Verified knowledge, advisory chat, access/data handling controls | Phase 4 data flows; verified sources | Complete |
+| 6 | Integration, evaluation, and presentation | End-to-end evidence, benchmark comparison, course report and demo rehearsal | Phases 1–5 | Complete |
 
 ### How we will work through the phases
 
@@ -202,7 +204,7 @@ participation rule will be invented during this phase.
 
 **Tasks**
 
-1. Build a responsive React/Vite client against the FastAPI contract.
+1. Build a responsive browser client against the FastAPI contract.
 2. Add data validation/preview, allocation run, results, unmatched candidates,
    open capacity, and decision explanations.
 3. Add the Algorithm Lab step-through view using Phase 2 trace events.
@@ -218,6 +220,14 @@ participation rule will be invented during this phase.
 
 - The core demo path works without terminal interaction; UI does not implement
   or alter matching policy itself.
+
+**Implementation note**
+
+- The prototype uses a static HTML/CSS/JavaScript client served by FastAPI, so
+  it needs no separate frontend package installation or development server.
+- CSV validation and allocation run through a small C++ runner. The service
+  writes run artifacts to a temporary directory and serves the resulting
+  explanations, trace, and Phase 3 synthetic report to the browser.
 
 ### Phase 5 — Assistant, policy sources, and safeguards
 
@@ -242,6 +252,15 @@ participation rule will be invented during this phase.
   user; assistant behavior and citations are validated with mock tests, and a
   live Gemini call is only claimed if actually performed.
 
+**Implementation note**
+
+- Phase 5 is implemented in `docs/PHASE5_PRIVACY_AND_ACCESS.md`. Non-synthetic
+  browser allocations are off by default; this local prototype still has no
+  individual candidate login and is not suitable for public multi-user use.
+- The official FAQ covers a limited set of dated facts, not a complete live
+  rulebook. No live Gemini request was made; the opt-in smoke script sends only
+  a fixed non-personal message.
+
 ### Phase 6 — Integration, evaluation, and presentation
 
 **Tasks**
@@ -262,6 +281,15 @@ participation rule will be invented during this phase.
 
 - The demo is repeatable from documented setup steps and no claim exceeds the
   available test/data evidence.
+
+**Implementation note**
+
+- Phase 6 is implemented in `docs/PHASE6_EVALUATION_AND_PRESENTATION.md`.
+  It records a repeatable displacement/unmatched/open-seat scenario, full-path
+  API/frontend acceptance coverage, measured algorithm comparisons, seeded
+  sensitivity results, report and slide outlines, and prototype limitations.
+- The final oral rehearsal is a presenter activity and is not claimed complete
+  by repository checks.
 
 ## 3. Core recommendation: build a transparent allocator before ML
 

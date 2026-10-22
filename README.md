@@ -3,9 +3,9 @@
 ![C++](https://img.shields.io/badge/C%2B%2B-17-00599C?style=for-the-badge&logo=cplusplus&logoColor=white)
 ![Make](https://img.shields.io/badge/Build-Make-427819?style=for-the-badge&logo=gnu&logoColor=white)
 ![CSV](https://img.shields.io/badge/Data-CSV-217346?style=for-the-badge&logo=microsoftexcel&logoColor=white)
-![CLI](https://img.shields.io/badge/Interface-CLI-4D4D4D?style=for-the-badge&logo=gnubash&logoColor=white)
+![CLI + Web](https://img.shields.io/badge/Interface-CLI%20%2B%20Web-4D4D4D?style=for-the-badge&logo=gnubash&logoColor=white)
 ![Algorithm](https://img.shields.io/badge/Algorithm-Gale--Shapley-8A2BE2?style=for-the-badge)
-![Status](https://img.shields.io/badge/Status-CLI%20Complete-brightgreen?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-Phase%206%20Complete-brightgreen?style=for-the-badge)
 
 A C++ CLI tool that matches candidates to companies with fixed seat counts
 using a Gale–Shapley-style stable matching algorithm — built for the PM
@@ -43,7 +43,7 @@ maximum total score or encode official PMIS policy.
 
 | Structure | Where | Purpose |
 |---|---|---|
-| **Hash Map** (`unordered_map`) | `candidates_`, `companies_`, `scoreCache_` | O(1) lookup by ID; caches every pairwise score so it's never recomputed |
+| **Hash Map** (`unordered_map`) | `candidates_`, `companies_`, `scoreCache_` | Average O(1) lookup by ID; caches computed pair scores |
 | **Min-Heap** (`priority_queue`, size = seat count) | `Company::heldSeats` | Top of heap = weakest currently-held candidate → O(1) peek, O(log seats) displacement instead of scanning all seat-holders |
 | **Queue** (`std::queue`) | `pool` in `Allocator::runAllocation` | Drives the main loop: holds not-yet-placed candidates, re-enqueues anyone displaced |
 | **Sorting** (`std::sort`) | `Allocator::buildPreferenceLists` | Run once per candidate to turn raw scores into a ranked preference list |
@@ -94,6 +94,18 @@ separated), supplies the candidate's ranked acceptable companies. If the
 column is present but empty, the candidate has no acceptable companies. If it
 is absent, the legacy score-ranked behavior is used.
 
+The optional extended header appends `qualifications`, `preferred_locations`,
+`sector_interests`, and `prior_participation` after
+`preferred_company_ids`. The company CSV can append
+`required_qualifications`. These profile fields are for prototype scenarios;
+the checked-in policy leaves qualification, location, sector, and
+past-participation filters disabled. Prior participation is not included in
+per-candidate exports.
+
+```text
+id,name,skills,cgpa,sector,location,preferred_company_ids,qualifications,preferred_locations,sector_interests,prior_participation
+```
+
 **`companies.csv`**
 ```
 id,name,required_skills(;-separated),seats,sector,location
@@ -108,7 +120,9 @@ Each candidate-company score (0–100) is a weighted sum of:
 - Sector match — 10%
 - Location match — 10%
 
-Weights are adjustable in `src/scoring.cpp`.
+Weights are configured in `config/allocation_policy_v2.conf` and validated to
+sum to 1.0. That file also records the policy version, tie-break, seat rule,
+and optional hard requirements. The CLI loads it on CSV import.
 
 These are prototype fit weights. Required skills are currently a soft score
 component, not a hard eligibility check. CGPA is validated to 0–10 but no
@@ -122,9 +136,30 @@ minimum is imposed. Official scheme constraints have not been inferred.
 - The `Allocator` class is decoupled from CLI I/O, so a future UI (web or
   desktop) can reuse it directly without changes to the core algorithm.
 
+## Browser demo
+
+Phase 4 adds a local browser interface served by the FastAPI service. Start it
+using the setup in [rag_service/README.md](rag_service/README.md), then open
+`http://127.0.0.1:8000`. The page can validate CSVs, run the C++ allocator,
+inspect outcomes and allocation trace, and compare seeded synthetic scenarios.
+The web service stores each browser run in a temporary directory; it does not
+replace the checked-in or saved export files.
+
 ## Status
 
-CLI version — functional and tested. UI layer planned as a later phase.
+Phases 0–6 are implemented, including the local browser demo, advisory
+assistant, integration scenario, benchmark evidence, and report/presentation
+outline. The policy settings and synthetic scenarios remain prototype choices
+pending official rule verification. See the
+[Phase 6 evaluation and presentation guide](docs/PHASE6_EVALUATION_AND_PRESENTATION.md)
+for reproducible results and acceptance evidence, and the
+[complete project handoff](docs/PROJECT_HANDOFF.md) for architecture, file
+structure, stack, data flow, setup, and implementation history.
+
+Run the reproducible synthetic policy/fairness and sensitivity scenarios with
+`make phase3-report`. It prints CSV rows for baseline, score-weight, and
+opt-in eligibility-rule variants. The cohort labels are synthetic and are not
+protected attributes or evidence of real-world fairness.
 
 ## RAG Candidate Assistant
 
@@ -142,6 +177,9 @@ flowchart LR
   API --> CHAT[Mock or configured LLM]
   INDEX --> CHAT
   CHAT --> CLI[chat_cli.py]
+  CSV --> WEB[FastAPI browser demo]
+  WEB --> SAE
+  SAE --> WEB
 ```
 
 Run the C++ menu through options **1, 2, 3, and 7** to generate

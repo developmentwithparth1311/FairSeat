@@ -104,7 +104,7 @@ Social Media, Statistics, Supply Chain.
   guidance-only disclaimer run in the API layer. The real provider has not
   been exercised against an external API; tests mock provider responses.
 
-## Phase 6: polish
+## Original RAG assistant spec Phase 6: polish
 
 - Added root and service setup documentation, a checked-in `.env.example`, and
   the supplied implementation spec under `docs/SAE_RAG_ASSISTANT_SPEC.md` so
@@ -114,6 +114,17 @@ Social Media, Statistics, Supply Chain.
   for verification before a public demo.
 - Cutoff access returns `std::optional<double>` so an open seat is represented
   explicitly as absent, including for any unusual negative score input.
+
+## SIH25033 roadmap Phase 6: integration and evaluation
+
+- A deterministic fixture at `tests/fixtures/phase6/` demonstrates a
+  displacement, second-choice placement, unmatched candidate, and open seat.
+- The browser acceptance check sends this CSV through FastAPI validation and
+  the C++ runner, then checks the returned explanation, trace, frontend assets,
+  and fixed-seed policy report.
+- Benchmark timings are recorded as single-run machine observations. Operation
+  counts and assignment equivalence are the more repeatable comparison; neither
+  runtime nor synthetic cohort rates establish fairness or production quality.
 
 ## Phase 7: SIH25033 improvement roadmap — Phase 1
 
@@ -138,3 +149,73 @@ Social Media, Statistics, Supply Chain.
 - Explanation exports now use schema version 2 with policy/algorithm/tie
   metadata, reason codes, and trace events. The Python service continues to
   accept schema v1 and v2.
+
+## Phase 8: SIH25033 improvement roadmap — Phase 2
+
+- Materialized candidate/company acceptable pairs as a deterministic
+  bipartite adjacency graph. The graph represents submitted acceptable lists
+  or legacy score-ranked choices; it does not introduce external eligibility
+  rules.
+- Deferred acceptance now traverses the graph and adds a `competition` trace
+  event when a proposal is compared with a full company's weakest heap holder,
+  plus a `completion` event for every candidate.
+- Exported graph density and allocator operation counters in the existing
+  schema v2 candidate export; extra fields remain optional to existing Python
+  readers.
+- Added a fixed-seed C++ benchmark for dense/sparse score storage, heap versus
+  linear-scan deferred acceptance, and a candidate-ID greedy baseline. The
+  heap and linear implementations must return identical assignments.
+- Recorded complexity, invariant definitions, benchmark results, and
+  measurement limitations in `docs/PHASE2_DATA_STRUCTURES.md`.
+
+## Phase 9: SIH25033 improvement roadmap — Phase 3
+
+- Added versioned policy configuration in `config/allocation_policy_v2.conf`;
+  the CLI reads it and the allocator validates known keys, supported rules,
+  score weights, tie-break, and seat-capacity behavior.
+- Added optional qualification, preferred-location, sector-interest, and past
+  participation inputs with backward-compatible candidate/company CSV
+  headers. The shipped config preserves existing weights and disables all new
+  hard requirements.
+- Added opt-in exact-label qualification, location, sector, and prior
+  participation filters for synthetic what-if runs. They are not verified
+  SIH/PMIS rules and are not enabled by default.
+- Added seeded aggregate comparison output for allocation, eligibility,
+  unmatched counts, average score, capacity use, location/sector coverage,
+  and changed assignments. Cohort labels exist only in the simulator; the
+  sensitive prior-participation input is omitted from individual exports.
+- Updated schema consumers, allocation policy, traceability, and data
+  dictionary; explanation exports use schema version 3 while the Python
+  service retains version 1 and 2 compatibility. `docs/PHASE3_POLICY_AND_FAIRNESS.md`
+  records assumptions and sample results.
+
+## Phase 10: SIH25033 improvement roadmap — Phase 4
+
+- The browser is static HTML, CSS, and JavaScript served by FastAPI, keeping
+  the demo easy to run locally without a separate frontend toolchain.
+- A small C++ runner validates CSVs and runs allocations for the API. Results
+  are loaded from a per-run temporary export directory, leaving saved exports
+  untouched.
+- The browser presents the C++ result and trace, and retrieves the existing
+  fixed-seed scenario report; it does not calculate scores or change policy.
+- The browser demo labels checked-in inputs and scenario cohorts as synthetic.
+  It remains a local prototype; policy settings still need official-source
+  verification before real allocation use.
+
+## Phase 11: SIH25033 improvement roadmap — Phase 5
+
+- The scheme FAQ records dated PIB/MCA sources and warns that 2024 pilot
+  information is historical. The 2026 update is included only at the scope
+  supported by its official release; the live portal remains the reference
+  for current round details.
+- Direct remote peers are rejected, request sizes and rates are bounded, and
+  admin routes require an explicit long token. The service is still a local
+  prototype and must not be exposed through a shared reverse proxy.
+- Candidate names and IDs are omitted from LLM prompts; limited chat history
+  remains in memory only. Gemini mode reports its external processing and the
+  CLI requests operator confirmation before the first chat call.
+- Numeric model output not present in candidate facts or retrieved passages
+  is replaced with a safe verification response. This is a narrow guardrail,
+  not a proof that every generated statement is correct.
+- A separate Gemini smoke script is opt-in and sends only a fixed prompt; no
+  live provider call was made while implementing this phase.
