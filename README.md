@@ -1,191 +1,155 @@
 # Stable Allocation Engine (SAE)
 
-![C++](https://img.shields.io/badge/C%2B%2B-17-00599C?style=for-the-badge&logo=cplusplus&logoColor=white)
-![Make](https://img.shields.io/badge/Build-Make-427819?style=for-the-badge&logo=gnu&logoColor=white)
-![CSV](https://img.shields.io/badge/Data-CSV-217346?style=for-the-badge&logo=microsoftexcel&logoColor=white)
-![CLI + Web](https://img.shields.io/badge/Interface-CLI%20%2B%20Web-4D4D4D?style=for-the-badge&logo=gnubash&logoColor=white)
-![Algorithm](https://img.shields.io/badge/Algorithm-Gale--Shapley-8A2BE2?style=for-the-badge)
-![Status](https://img.shields.io/badge/Status-Phase%206%20Complete-brightgreen?style=for-the-badge)
+Stable Allocation Engine is a student project inspired by SIH25033, “AI-Based
+Smart Allocation Engine.” It allocates candidates to internship opportunities
+with limited seats and provides explanations for the resulting assignments.
 
-A C++ CLI tool that matches candidates to companies with fixed seat counts
-using a Gale–Shapley-style stable matching algorithm — built for the PM
-Internship Scheme allocation problem (SIH25033/34).
+## Overview
 
-## Problem
+The C++17 engine calculates candidate–company fit scores and runs
+candidate-proposing deferred acceptance. Candidate preferences can be supplied
+in the input CSV; otherwise, companies are ranked by fit score. Company
+priority is based on fit score, with candidate ID used to break ties. The
+allocator checks seat capacity, assignment consistency, and blocking pairs
+under the configured preference rules.
 
-Match N candidates to M companies, each with a fixed number of seats, such
-that the final assignment is **stable**: no candidate-company pair exists
-where both would rather switch away from their current match to be with
-each other.
+The project also includes a local browser interface and a Python service. The
+service invokes the C++ engine and returns its results to the interface. An
+optional retrieval-augmented assistant can explain exported results and
+provide skill guidance. It does not participate in allocation.
 
-## How It Works
+## Architecture
 
-1. **Score** — candidate-company fit is computed from skill overlap, CGPA,
-   and sector/location alignment.
-2. **Rank** — when an explicit `preferred_company_ids` column is supplied,
-   its order is used and is treated as the candidate's acceptable options.
-   Legacy six-column files keep score-ranked choices (score descending, then
-   company ID ascending).
-3. **Allocate** — candidates are processed one at a time from a queue:
-   - If their top remaining choice has an open seat, they're placed.
-   - If the seat is full, the candidate is compared against the weakest
-     holder. Higher score wins; equal scores go to the lower candidate ID.
-     A displaced candidate returns to the queue.
-4. **Validate** — capacity, one-seat-per-candidate, acceptable assignments,
-   and blocking pairs are checked before the result is accepted.
-
-The allocator is stable relative to the explicit/generated preference rankings
-and company ranking rules documented in
-[docs/ALLOCATION_POLICY.md](docs/ALLOCATION_POLICY.md). It does not promise a
-maximum total score or encode official PMIS policy.
-
-## Data Structures Used
-
-| Structure | Where | Purpose |
-|---|---|---|
-| **Hash Map** (`unordered_map`) | `candidates_`, `companies_`, `scoreCache_` | Average O(1) lookup by ID; caches computed pair scores |
-| **Min-Heap** (`priority_queue`, size = seat count) | `Company::heldSeats` | Top of heap = weakest currently-held candidate → O(1) peek, O(log seats) displacement instead of scanning all seat-holders |
-| **Queue** (`std::queue`) | `pool` in `Allocator::runAllocation` | Drives the main loop: holds not-yet-placed candidates, re-enqueues anyone displaced |
-| **Sorting** (`std::sort`) | `Allocator::buildPreferenceLists` | Run once per candidate to turn raw scores into a ranked preference list |
-| **Trace vector** (`std::vector`) | `Allocator::allocationTrace` | Stores proposal, acceptance, rejection, displacement, and unmatched events |
-
-## Project Structure
-
-```
-pm_allocation_engine/
-├── include/          Header files (candidate.h, company.h, scoring.h, csv_utils.h, allocator.h)
-├── src/               Implementation files + main.cpp (CLI menu)
-├── data/              candidates.csv, companies.csv (sample/input data)
-├── Makefile
-└── README.md
+```mermaid
+flowchart LR
+  CSV[Candidate and company CSV] --> CORE[C++ scoring and allocation]
+  CORE --> JSON[Versioned explanation JSON]
+  CSV --> API[FastAPI service]
+  API --> CORE
+  JSON --> API
+  API --> WEB[HTML, CSS and JavaScript interface]
+  JSON --> RAG[Optional retrieval-augmented assistant]
+  KB[Local Markdown knowledge base] --> RAG
+  RAG --> CHAT[Terminal client or chat API]
 ```
 
-## Build & Run
+## Matching policy
+
+The default score is a weighted sum on a 0–100 scale:
+
+| Component | Weight |
+|---|---:|
+| Required-skill overlap | 50% |
+| CGPA normalized to 0–10 | 30% |
+| Sector match | 10% |
+| Location match | 10% |
+
+Weights and optional policy rules are defined in
+[`config/allocation_policy_v2.conf`](config/allocation_policy_v2.conf). Required
+skills are a soft scoring component in the default policy; missing skills do
+not make a candidate ineligible. Qualification, location, sector, and
+prior-participation filters are disabled by default. These settings are
+prototype assumptions and should not be treated as official PMIS rules.
+
+The allocation is stable only relative to the preference lists, company
+priorities, and tie-breaking rules supplied to the engine. It does not
+guarantee a maximum total score, fairness, or compliance with all scheme rules.
+
+## Technology
+
+- **Allocation:** C++17 and the standard library
+- **API:** Python, FastAPI, Uvicorn, and Pydantic
+- **Interface:** HTML, CSS, and vanilla JavaScript
+- **Assistant:** Sentence Transformers, NumPy, optional FAISS, and an optional
+  Gemini API client
+- **Data:** CSV inputs and JSON explanations; no database server is required
+- **Build and verification:** Make, `g++`, C++ checks, and pytest
+
+The assistant defaults to a deterministic local mock provider. Gemini can be
+configured in `rag_service/.env`; no live Gemini call has been verified. No
+machine-learning model is trained for allocation.
+
+## Build and run the C++ application
+
+From the repository root:
 
 ```bash
-make clean && make
+make
 ./allocator_app
 ```
 
-Menu flow (must be done in order):
+The menu loads candidate and company CSV files, builds preference lists, runs
+the allocation, displays results, and exports data. Option 7 writes
+`exports/candidates.json` and `exports/companies.json` after an allocation.
+Press Enter at the CSV prompts to use `data/candidates.csv` and
+`data/companies.csv`.
 
-1. **Load candidates & companies from CSV** — press Enter twice to accept
-   the default paths (`data/candidates.csv`, `data/companies.csv`)
-2. **Build preference lists** — scores + sorts every candidate
-3. **Run stable allocation** — runs the queue/heap matching process
-4. **View results** — prints final matches per company + any unmatched candidates
-5. **Export results to CSV** — saves to `results.csv`
-7. **Export explanation data for RAG assistant** — after allocation, writes
-   `exports/candidates.json` and `exports/companies.json`.
-8. **Exit**
+## Run the browser interface
 
-The engine's original **Exit** entry moved from option 6 to option 8 to leave
-the requested explanation-export number at 7; option 6 is currently unused.
-
-## CSV Formats
-
-**`candidates.csv`**
-```
-id,name,skills(;-separated),cgpa,sector,location
+```bash
+cd rag_service
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+test -f .env || cp .env.example .env
+uvicorn app.main:app --host 127.0.0.1 --reload --no-access-log --port 8000
 ```
 
-An optional seventh candidate column, `preferred_company_ids` (semicolon
-separated), supplies the candidate's ranked acceptable companies. If the
-column is present but empty, the candidate has no acceptable companies. If it
-is absent, the legacy score-ranked behavior is used.
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The interface supports
+CSV validation and preview, allocation, result explanations, company
+capacity, allocation-trace replay, and synthetic policy scenarios. Browser
+allocations use temporary files and do not overwrite the saved exports.
 
-The optional extended header appends `qualifications`, `preferred_locations`,
-`sector_interests`, and `prior_participation` after
-`preferred_company_ids`. The company CSV can append
-`required_qualifications`. These profile fields are for prototype scenarios;
-the checked-in policy leaves qualification, location, sector, and
-past-participation filters disabled. Prior participation is not included in
-per-candidate exports.
+## Input formats
+
+Candidate CSV supports the legacy six-column form and optional extended
+fields:
 
 ```text
 id,name,skills,cgpa,sector,location,preferred_company_ids,qualifications,preferred_locations,sector_interests,prior_participation
 ```
 
-**`companies.csv`**
-```
-id,name,required_skills(;-separated),seats,sector,location
-```
+Company CSV supports the legacy six-column form and an optional qualification
+field:
 
-## Scoring
-
-Each candidate-company score (0–100) is a weighted sum of:
-
-- Skill overlap — 50%
-- CGPA (normalized out of 10) — 30%
-- Sector match — 10%
-- Location match — 10%
-
-Weights are configured in `config/allocation_policy_v2.conf` and validated to
-sum to 1.0. That file also records the policy version, tie-break, seat rule,
-and optional hard requirements. The CLI loads it on CSV import.
-
-These are prototype fit weights. Required skills are currently a soft score
-component, not a hard eligibility check. CGPA is validated to 0–10 but no
-minimum is imposed. Official scheme constraints have not been inferred.
-
-## Extending
-
-- Change scoring weights or logic in `scoring.cpp`.
-- Add a hard skill-requirement filter before building preference lists if
-  partial matches shouldn't be considered at all.
-- The `Allocator` class is decoupled from CLI I/O, so a future UI (web or
-  desktop) can reuse it directly without changes to the core algorithm.
-
-## Browser demo
-
-Phase 4 adds a local browser interface served by the FastAPI service. Start it
-using the setup in [rag_service/README.md](rag_service/README.md), then open
-`http://127.0.0.1:8000`. The page can validate CSVs, run the C++ allocator,
-inspect outcomes and allocation trace, and compare seeded synthetic scenarios.
-The web service stores each browser run in a temporary directory; it does not
-replace the checked-in or saved export files.
-
-## Status
-
-Phases 0–6 are implemented, including the local browser demo, advisory
-assistant, integration scenario, benchmark evidence, and report/presentation
-outline. The policy settings and synthetic scenarios remain prototype choices
-pending official rule verification. See the
-[Phase 6 evaluation and presentation guide](docs/PHASE6_EVALUATION_AND_PRESENTATION.md)
-for reproducible results and acceptance evidence, and the
-[complete project handoff](docs/PROJECT_HANDOFF.md) for architecture, file
-structure, stack, data flow, setup, and implementation history.
-
-Run the reproducible synthetic policy/fairness and sensitivity scenarios with
-`make phase3-report`. It prints CSV rows for baseline, score-weight, and
-opt-in eligibility-rule variants. The cohort labels are synthetic and are not
-protected attributes or evidence of real-world fairness.
-
-## RAG Candidate Assistant
-
-The optional assistant explains the completed allocation and offers skill
-guidance. SAE remains the only scoring and allocation engine; the Python
-service reads its generated JSON exports and does not modify results.
-
-```mermaid
-flowchart LR
-  CSV[Candidate and company CSV] --> SAE[C++ SAE score and allocate]
-  SAE -->|menu option 7| JSON[exports JSON]
-  JSON --> API[Python API and deterministic skill analysis]
-  KB[Knowledge base Markdown] --> INDEX[Chunk and vector index]
-  JSON --> INDEX
-  API --> CHAT[Mock or configured LLM]
-  INDEX --> CHAT
-  CHAT --> CLI[chat_cli.py]
-  CSV --> WEB[FastAPI browser demo]
-  WEB --> SAE
-  SAE --> WEB
+```text
+id,name,required_skills,seats,sector,location,required_qualifications
 ```
 
-Run the C++ menu through options **1, 2, 3, and 7** to generate
-`exports/candidates.json` and `exports/companies.json`. The menu's Exit action
-is option **8**. Then follow the setup and chat instructions in
-[rag_service/README.md](rag_service/README.md). The mock provider works without
-an API key. Full implementation requirements are in
-[docs/SAE_RAG_ASSISTANT_SPEC.md](docs/SAE_RAG_ASSISTANT_SPEC.md), and repository
-decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md).
+List values are semicolon-separated. When `preferred_company_ids` is present,
+its order defines the candidate's preferences and acceptable opportunities.
+An empty value means the candidate has no acceptable opportunities. If the
+column is absent, the engine uses score-ranked preferences. CGPA must be in
+the range 0–10, and seat capacity must be positive.
+
+## Tests and reports
+
+```bash
+# C++ scoring, allocation, export, and JSON validation
+make test
+
+# Python API, assistant, and retrieval checks
+cd rag_service && python -m pytest -q
+
+# Seeded synthetic benchmark and policy scenarios
+cd ..
+make benchmark
+make phase3-report
+```
+
+## Prototype limits
+
+SAE is a local demonstration project. Its sample data and policy scenarios are
+synthetic. It does not implement a complete verified PMIS rulebook, affirmative
+action policy, candidate login or consent workflow, or production deployment
+security. The optional assistant is advisory and must not be used as an
+authoritative source for eligibility or scheme decisions.
+
+## Documentation
+
+- [Complete project handoff](docs/PROJECT_HANDOFF.md)
+- [Allocation policy](docs/ALLOCATION_POLICY.md)
+- [Data dictionary](docs/DATA_DICTIONARY.md)
+- [Requirements traceability](docs/REQUIREMENTS_TRACEABILITY.md)
+- [Evaluation and demo guide](docs/PHASE6_EVALUATION_AND_PRESENTATION.md)
+- [Python service setup and API](rag_service/README.md)
