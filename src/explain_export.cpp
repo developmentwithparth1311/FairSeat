@@ -84,12 +84,42 @@ void exportExplanationData(const Allocator& allocator,
     companyOut.imbue(std::locale::classic());
     candidateOut << std::fixed << std::setprecision(1);
     companyOut << std::fixed << std::setprecision(1);
-    candidateOut << "{\n  \"schema_version\": 2,\n  \"policy_version\": \"prototype-score-v1\",\n"
-                    "  \"algorithm\": \"candidate-proposing-deferred-acceptance\",\n"
+    const auto& policy = allocator.policy();
+    candidateOut << "{\n  \"schema_version\": 3,\n  \"policy_version\": ";
+    writeString(candidateOut, policy.version);
+    candidateOut << ",\n  \"algorithm\": ";
+    writeString(candidateOut, policy.algorithm);
+    candidateOut << ",\n  \"policy_rules\": {\"qualification_requirement\": ";
+    writeString(candidateOut, policy.qualificationRequirement);
+    candidateOut << ", \"location_requirement\": ";
+    writeString(candidateOut, policy.locationRequirement);
+    candidateOut << ", \"sector_requirement\": ";
+    writeString(candidateOut, policy.sectorRequirement);
+    candidateOut << ", \"exclude_prior_participants\": " << (policy.excludePriorParticipants ? "true" : "false") << "},\n"
                     "  \"tie_break_policy\": \"candidate order: submitted list, otherwise score descending then company ID ascending; company order: score descending then candidate ID ascending\",\n"
                     "  \"generated_at\": ";
     writeString(candidateOut, generatedAtUtc());
-    candidateOut << ",\n  \"scoring_weights\": {\"skills\": 0.5, \"cgpa\": 0.3, \"sector\": 0.1, \"location\": 0.1},\n  \"candidates\": [\n";
+    const auto& graph = allocator.preferenceGraph();
+    const auto& metrics = allocator.operationCounts();
+    candidateOut << ",\n  \"graph\": {\"candidate_vertices\": " << graph.candidateIds.size()
+                 << ", \"company_vertices\": " << graph.companyIds.size()
+                 << ", \"acceptable_edges\": " << graph.edgeCount
+                 << ", \"density\": " << graph.density << "},\n"
+                    "  \"operation_counts\": {\"score_evaluations\": " << metrics.scoreEvaluations
+                 << ", \"score_cache_hits\": " << metrics.scoreCacheHits
+                 << ", \"preference_sort_comparisons\": " << metrics.preferenceSortComparisons
+                 << ", \"queue_pushes\": " << metrics.queuePushes
+                 << ", \"queue_pops\": " << metrics.queuePops
+                 << ", \"proposals\": " << metrics.proposals
+                 << ", \"company_rank_comparisons\": " << metrics.companyRankComparisons
+                 << ", \"seat_heap_pushes\": " << metrics.seatHeapPushes
+                 << ", \"seat_heap_pops\": " << metrics.seatHeapPops
+                 << ", \"displacements\": " << metrics.displacements
+                 << ", \"rejections\": " << metrics.rejections << "},\n"
+                    "  \"scoring_weights\": {\"skills\": ";
+    candidateOut << policy.weights.skills << ", \"cgpa\": " << policy.weights.cgpa
+                 << ", \"sector\": " << policy.weights.sector << ", \"location\": " << policy.weights.location
+                 << "},\n  \"candidates\": [\n";
 
     std::vector<int> candidateIds;
     for (const auto& entry : allocator.candidates()) candidateIds.push_back(entry.first);
@@ -107,6 +137,12 @@ void exportExplanationData(const Allocator& allocator,
         writeString(candidateOut, candidate.sector);
         candidateOut << ", \"location\": ";
         writeString(candidateOut, candidate.location);
+        candidateOut << ", \"qualifications\": ";
+        writeStringArray(candidateOut, skills(candidate.qualifications));
+        candidateOut << ", \"preferred_locations\": ";
+        writeStringArray(candidateOut, candidate.preferredLocations);
+        candidateOut << ", \"sector_interests\": ";
+        writeStringArray(candidateOut, candidate.sectorInterests);
         candidateOut << ", \"allocation\": {\"status\": ";
         const bool matched = candidate.matchedCompany != -1;
         writeString(candidateOut, matched ? "matched" : "unmatched");
@@ -130,7 +166,7 @@ void exportExplanationData(const Allocator& allocator,
             const int companyId = candidate.preferenceList[pi];
             if (pi >= topK && (!matched || companyId != candidate.matchedCompany)) continue;
             const Company& company = allocator.companies().at(companyId);
-            const ScoreBreakdown breakdown = scoreBreakdown(candidate, company);
+            const ScoreBreakdown breakdown = scoreBreakdown(candidate, company, policy.weights);
             const auto cutoff = allocator.cutoffFor(companyId);
             std::string outcome;
             if (companyId == candidate.matchedCompany) outcome = "matched";
@@ -191,7 +227,7 @@ void exportExplanationData(const Allocator& allocator,
     std::vector<int> companyIds;
     for (const auto& entry : allocator.companies()) companyIds.push_back(entry.first);
     std::sort(companyIds.begin(), companyIds.end());
-    companyOut << "{\n  \"schema_version\": 2,\n  \"companies\": [\n";
+    companyOut << "{\n  \"schema_version\": 3,\n  \"companies\": [\n";
     for (std::size_t i = 0; i < companyIds.size(); ++i) {
         if (i) companyOut << ",\n";
         const Company& company = allocator.companies().at(companyIds[i]);
@@ -203,7 +239,9 @@ void exportExplanationData(const Allocator& allocator,
         companyOut << ", \"required_skills\": ";
         writeStringArray(companyOut, skills(company.requiredSkills));
         companyOut << ", \"seats\": " << company.seats
-                   << ", \"seats_filled\": " << company.seatsFilled() << ", \"sector\": ";
+                   << ", \"seats_filled\": " << company.seatsFilled() << ", \"required_qualifications\": ";
+        writeStringArray(companyOut, skills(company.requiredQualifications));
+        companyOut << ", \"sector\": ";
         writeString(companyOut, company.sector);
         companyOut << ", \"location\": ";
         writeString(companyOut, company.location);

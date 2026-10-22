@@ -48,6 +48,11 @@ void test_explicit_preferences_ties_trace_and_stability() {
     Allocator allocator(candidates, companies);
     allocator.buildPreferenceLists();
     assert((allocator.candidates().at(1).preferenceList == std::vector<int>{20, 10}));
+    assert(allocator.preferenceGraph().candidateIds.size() == 3);
+    assert(allocator.preferenceGraph().companyIds.size() == 2);
+    assert(allocator.preferenceGraph().edgeCount == 4);
+    assert((allocator.preferenceGraph().candidateEdges.at(1) == std::vector<int>{20, 10}));
+    assert(allocator.preferenceGraph().companyEdges.at(20).size() == 2);
     allocator.runAllocation();
 
     assert(allocator.candidates().at(1).matchedCompany == 10);
@@ -56,6 +61,11 @@ void test_explicit_preferences_ties_trace_and_stability() {
     assert(allocator.unmatchedReason(2) == "all_acceptable_opportunities_rejected");
     assert(allocator.validateAllocation().empty());
     assert(allocator.blockingPairs().empty());
+    assert(allocator.operationCounts().graphEdges == 4);
+    assert(allocator.operationCounts().proposals > 0);
+    assert(allocator.operationCounts().seatHeapPushes >= 2);
+    assert(allocator.operationCounts().displacements >= 1);
+    assert(allocator.operationCounts().queuePops == allocator.operationCounts().queuePushes);
 
     bool sawTieBreak = false;
     bool sawDisplacement = false;
@@ -65,6 +75,7 @@ void test_explicit_preferences_ties_trace_and_stability() {
     }
     assert(sawTieBreak);
     assert(sawDisplacement);
+    assert(allocator.allocationTrace().back().type == "completion");
 }
 
 void test_empty_preferences_and_legacy_ranking() {
@@ -84,6 +95,57 @@ void test_empty_preferences_and_legacy_ranking() {
     assert(allocator.candidates().at(2).matchedCompany == 10);
     assert(allocator.validateAllocation().empty());
     assert(allocator.blockingPairs().empty());
+}
+
+void test_policy_controlled_rules_and_counterfactual_metadata() {
+    std::unordered_map<int, Candidate> candidates;
+    auto eligible = candidate(1, {"SQL"}, {10, 20});
+    eligible.qualifications = {"degree_a"};
+    eligible.preferredLocations = {"Pune"};
+    eligible.sectorInterests = {"IT"};
+    eligible.priorParticipation = false;
+    candidates.emplace(1, eligible);
+    auto prior = candidate(2, {"SQL"}, {10, 20});
+    prior.qualifications = {"degree_a"};
+    prior.preferredLocations = {"Pune"};
+    prior.sectorInterests = {"IT"};
+    prior.priorParticipation = true;
+    candidates.emplace(2, prior);
+
+    std::unordered_map<int, Company> companies;
+    auto pune = company(10, {"SQL"}, 1);
+    pune.requiredQualifications = {"degree_a"};
+    companies.emplace(10, pune);
+    auto delhi = company(20, {"SQL"}, 1, "Design", "Delhi");
+    delhi.requiredQualifications = {"degree_b"};
+    companies.emplace(20, delhi);
+
+    AllocationPolicy policy;
+    policy.version = "synthetic-policy-test";
+    policy.qualificationRequirement = "all_required";
+    policy.locationRequirement = "preferred_locations";
+    policy.sectorRequirement = "sector_interests";
+    policy.excludePriorParticipants = true;
+    Allocator allocator(candidates, companies, policy);
+    allocator.buildPreferenceLists();
+    assert((allocator.preferenceGraph().candidateEdges.at(1) == std::vector<int>{10}));
+    assert(allocator.preferenceGraph().candidateEdges.at(2).empty());
+    assert(allocator.candidates().at(2).eligibilityFilteredCount == 2);
+    allocator.runAllocation();
+    assert(allocator.candidates().at(1).matchedCompany == 10);
+    assert(allocator.unmatchedReason(2) == "no_eligible_opportunities");
+
+    auto configured = loadAllocationPolicy("config/allocation_policy_v2.conf");
+    assert(configured.version == "prototype-score-v2");
+    assert(configured.qualificationRequirement == "disabled");
+    assert(configured.weights.skills == 0.5);
+
+    const auto fixtureCandidates = loadCandidates("tests/fixtures/phase3/candidates_v3.csv");
+    const auto fixtureCompanies = loadCompanies("tests/fixtures/phase3/companies_v2.csv");
+    assert(fixtureCandidates.size() == 4);
+    assert(fixtureCompanies.size() == 2);
+    assert(fixtureCandidates.at(3).priorParticipation == std::nullopt);
+    assert(fixtureCompanies.at(10).requiredQualifications.count("degree_a") == 1);
 }
 
 void test_csv_preferences_and_validation() {
@@ -137,6 +199,24 @@ void test_csv_preferences_and_validation() {
         rejectedInvalidCgpa = true;
     }
     assert(rejectedInvalidCgpa);
+
+    {
+        std::ofstream out(candidatesPath);
+        out << "id,name,skills,cgpa,sector,location,preferred_company_ids,qualifications,preferred_locations,sector_interests,prior_participation\n"
+            << "1,Profile,SQL,8.0,IT,Pune,10,degree_a;degree_b,Pune;Delhi,IT;Design,true\n";
+    }
+    {
+        std::ofstream out(companiesPath);
+        out << "id,name,required_skills,seats,sector,location,required_qualifications\n"
+            << "10,One,SQL,1,IT,Pune,degree_a\n";
+    }
+    candidates = loadCandidates(candidatesPath.string());
+    companies = loadCompanies(companiesPath.string());
+    assert(candidates.at(1).qualifications.count("degree_b") == 1);
+    assert((candidates.at(1).preferredLocations == std::vector<std::string>{"Pune", "Delhi"}));
+    assert((candidates.at(1).sectorInterests == std::vector<std::string>{"IT", "Design"}));
+    assert(candidates.at(1).priorParticipation == true);
+    assert(companies.at(10).requiredQualifications.count("degree_a") == 1);
     std::filesystem::remove_all(root);
 }
 }
@@ -144,5 +224,6 @@ void test_csv_preferences_and_validation() {
 int main() {
     test_explicit_preferences_ties_trace_and_stability();
     test_empty_preferences_and_legacy_ranking();
+    test_policy_controlled_rules_and_counterfactual_metadata();
     test_csv_preferences_and_validation();
 }

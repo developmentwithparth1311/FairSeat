@@ -24,6 +24,16 @@ int main() {
     assert((breakdown.matchedSkills == std::vector<std::string>{"python", "sql"}));
     assert(breakdown.missingSkills.empty());
 
+    candidate.preferredLocations = {"Delhi"};
+    candidate.sectorInterests = {"Design"};
+    const auto preferenceAware = scoreBreakdown(candidate, company);
+    assert(std::abs(preferenceAware.location) < 1e-9);
+    assert(std::abs(preferenceAware.sector) < 1e-9);
+    candidate.preferredLocations = {"Pune"};
+    candidate.sectorInterests = {"IT"};
+    const ScoreWeights skillHeavy{0.70, 0.10, 0.10, 0.10};
+    assert(std::abs(computeScore(candidate, company, skillHeavy) - 98.0) < 1e-9);
+
     Candidate partial{};
     partial.cgpa = 8.0;
     partial.sector = "Finance";
