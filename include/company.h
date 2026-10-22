@@ -19,6 +19,7 @@ struct Company {
     int id;
     std::string name;
     std::set<std::string> requiredSkills;
+    std::set<std::string> requiredQualifications;
     int seats;
     std::string sector;
     std::string location;

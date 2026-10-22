@@ -4,10 +4,6 @@
 #include <string>
 
 namespace {
-    constexpr double W_SKILL    = 0.5;
-    constexpr double W_CGPA     = 0.3;
-    constexpr double W_SECTOR   = 0.1;
-    constexpr double W_LOCATION = 0.1;
     constexpr double MAX_CGPA   = 10.0;
 }
 
@@ -29,7 +25,8 @@ namespace {
     }
 }
 
-ScoreBreakdown scoreBreakdown(const Candidate& c, const Company& comp) {
+ScoreBreakdown scoreBreakdown(const Candidate& c, const Company& comp,
+                              const ScoreWeights& weights) {
     int overlapCount = 0;
     std::vector<std::string> candidateSkills;
     candidateSkills.reserve(c.skills.size());
@@ -58,20 +55,26 @@ ScoreBreakdown scoreBreakdown(const Candidate& c, const Company& comp) {
 
     double cgpaScore = std::min(c.cgpa / MAX_CGPA, 1.0);
 
-    double sectorScore   = (c.sector == comp.sector) ? 1.0 : 0.0;
-    double locationScore = (c.location == comp.location) ? 1.0 : 0.0;
+    const bool sectorMatch = c.sectorInterests.empty()
+        ? c.sector == comp.sector
+        : std::find(c.sectorInterests.begin(), c.sectorInterests.end(), comp.sector) != c.sectorInterests.end();
+    const bool locationMatch = c.preferredLocations.empty()
+        ? c.location == comp.location
+        : std::find(c.preferredLocations.begin(), c.preferredLocations.end(), comp.location) != c.preferredLocations.end();
+    double sectorScore = sectorMatch ? 1.0 : 0.0;
+    double locationScore = locationMatch ? 1.0 : 0.0;
 
-    result.skills = W_SKILL * skillScore * 100.0;
-    result.cgpa = W_CGPA * cgpaScore * 100.0;
-    result.sector = W_SECTOR * sectorScore * 100.0;
-    result.location = W_LOCATION * locationScore * 100.0;
-    result.total = (W_SKILL * skillScore
-                  + W_CGPA * cgpaScore
-                  + W_SECTOR * sectorScore
-                  + W_LOCATION * locationScore) * 100.0;
+    result.skills = weights.skills * skillScore * 100.0;
+    result.cgpa = weights.cgpa * cgpaScore * 100.0;
+    result.sector = weights.sector * sectorScore * 100.0;
+    result.location = weights.location * locationScore * 100.0;
+    result.total = (weights.skills * skillScore
+                  + weights.cgpa * cgpaScore
+                  + weights.sector * sectorScore
+                  + weights.location * locationScore) * 100.0;
     return result;
 }
 
-double computeScore(const Candidate& c, const Company& comp) {
-    return scoreBreakdown(c, comp).total;
+double computeScore(const Candidate& c, const Company& comp, const ScoreWeights& weights) {
+    return scoreBreakdown(c, comp, weights).total;
 }

@@ -52,7 +52,8 @@ int main() {
                 try {
                     candidates = loadCandidates(candPath);
                     companies = loadCompanies(compPath);
-                    allocator = std::make_unique<Allocator>(candidates, companies);
+                    allocator = std::make_unique<Allocator>(
+                        candidates, companies, loadAllocationPolicy("config/allocation_policy_v2.conf"));
                     dataLoaded = true;
                     prefsBuilt = false;
                     allocated = false;

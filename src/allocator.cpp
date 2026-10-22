@@ -9,8 +9,10 @@
 #include <stdexcept>
 
 Allocator::Allocator(std::unordered_map<int, Candidate>& candidates,
-                      std::unordered_map<int, Company>& companies)
-    : candidates_(candidates), companies_(companies) {
+                      std::unordered_map<int, Company>& companies,
+                      AllocationPolicy policy)
+    : candidates_(candidates), companies_(companies), policy_(std::move(policy)) {
+    validateAllocationPolicy(policy_);
     if (candidates_.empty()) throw std::invalid_argument("At least one candidate is required");
     if (companies_.empty()) throw std::invalid_argument("At least one company is required");
     for (const auto& [candidateId, candidate] : candidates_) {
@@ -36,9 +38,13 @@ long long Allocator::cacheKey(int candId, int compId) {
 double Allocator::getScore(int candId, int compId) {
     long long key = cacheKey(candId, compId);
     auto it = scoreCache_.find(key);
-    if (it != scoreCache_.end()) return it->second;
+    if (it != scoreCache_.end()) {
+        ++metrics_.scoreCacheHits;
+        return it->second;
+    }
 
-    double s = computeScore(candidates_.at(candId), companies_.at(compId));
+    double s = computeScore(candidates_.at(candId), companies_.at(compId), policy_.weights);
+    ++metrics_.scoreEvaluations;
     scoreCache_[key] = s;
     return s;
 }
@@ -46,7 +52,20 @@ double Allocator::getScore(int candId, int compId) {
 double Allocator::scoreFor(int candidateId, int companyId) const {
     auto it = scoreCache_.find(cacheKey(candidateId, companyId));
     if (it != scoreCache_.end()) return it->second;
-    return computeScore(candidates_.at(candidateId), companies_.at(companyId));
+    return computeScore(candidates_.at(candidateId), companies_.at(companyId), policy_.weights);
+}
+
+bool Allocator::isEligible(const Candidate& candidate, const Company& company) const {
+    if (policy_.excludePriorParticipants && candidate.priorParticipation.value_or(false)) return false;
+    if (policy_.qualificationRequirement == "all_required") {
+        for (const auto& required : company.requiredQualifications)
+            if (candidate.qualifications.find(required) == candidate.qualifications.end()) return false;
+    }
+    if (policy_.locationRequirement == "preferred_locations" && !candidate.preferredLocations.empty() &&
+        std::find(candidate.preferredLocations.begin(), candidate.preferredLocations.end(), company.location) == candidate.preferredLocations.end()) return false;
+    if (policy_.sectorRequirement == "sector_interests" && !candidate.sectorInterests.empty() &&
+        std::find(candidate.sectorInterests.begin(), candidate.sectorInterests.end(), company.sector) == candidate.sectorInterests.end()) return false;
+    return true;
 }
 
 std::optional<double> Allocator::cutoffFor(int companyId) const {
@@ -57,7 +76,19 @@ std::optional<double> Allocator::cutoffFor(int companyId) const {
 
 void Allocator::buildPreferenceLists() {
     scoreCache_.clear();
+    metrics_ = {};
+    preferenceGraph_ = {};
+    for (const auto& [id, candidate] : candidates_) { (void)candidate; preferenceGraph_.candidateIds.push_back(id); }
+    for (const auto& [id, company] : companies_) { (void)company; preferenceGraph_.companyIds.push_back(id); }
+    std::sort(preferenceGraph_.candidateIds.begin(), preferenceGraph_.candidateIds.end());
+    std::sort(preferenceGraph_.companyIds.begin(), preferenceGraph_.companyIds.end());
+    for (const int id : preferenceGraph_.candidateIds) preferenceGraph_.candidateEdges.emplace(id, std::vector<int>{});
+    for (const int id : preferenceGraph_.companyIds) preferenceGraph_.companyEdges.emplace(id, std::vector<int>{});
     for (auto& [candId, candidate] : candidates_) {
+        candidate.eligibilityFilteredCount = 0;
+        candidate.preferenceList.clear();
+        candidate.nextPrefIdx = 0;
+        candidate.matchedCompany = -1;
         if (candidate.hasSubmittedPreferences) {
             std::set<int> seen;
             for (const int companyId : candidate.submittedPreferences) {
@@ -70,9 +101,10 @@ void Allocator::buildPreferenceLists() {
                                                 " has a duplicate company preference");
                 }
             }
-            candidate.preferenceList = candidate.submittedPreferences;
-            candidate.nextPrefIdx = 0;
-            candidate.matchedCompany = -1;
+            for (const int companyId : candidate.submittedPreferences) {
+                if (isEligible(candidate, companies_.at(companyId))) candidate.preferenceList.push_back(companyId);
+                else ++candidate.eligibilityFilteredCount;
+            }
             continue;
         }
 
@@ -80,20 +112,32 @@ void Allocator::buildPreferenceLists() {
         scored.reserve(companies_.size());
 
         for (auto& [compId, company] : companies_) {
+            if (!isEligible(candidate, company)) {
+                ++candidate.eligibilityFilteredCount;
+                continue;
+            }
             double s = getScore(candId, compId);
             scored.push_back({s, compId});
         }
 
-        std::sort(scored.begin(), scored.end(), [](const auto& a, const auto& b) {
+        std::sort(scored.begin(), scored.end(), [this](const auto& a, const auto& b) {
+            ++metrics_.preferenceSortComparisons;
             if (a.first != b.first) return a.first > b.first;
             return a.second < b.second;
         });
 
-        candidate.preferenceList.clear();
         for (auto& [score, compId] : scored) candidate.preferenceList.push_back(compId);
-        candidate.nextPrefIdx = 0;
-        candidate.matchedCompany = -1;
     }
+    for (const int candidateId : preferenceGraph_.candidateIds) {
+        const auto& edges = candidates_.at(candidateId).preferenceList;
+        preferenceGraph_.candidateEdges[candidateId] = edges;
+        preferenceGraph_.edgeCount += edges.size();
+        for (const int companyId : edges) preferenceGraph_.companyEdges[companyId].push_back(candidateId);
+    }
+    metrics_.graphEdges = preferenceGraph_.edgeCount;
+    const auto possiblePairs = preferenceGraph_.candidateIds.size() * preferenceGraph_.companyIds.size();
+    preferenceGraph_.density = possiblePairs == 0 ? 0.0 :
+        static_cast<double>(preferenceGraph_.edgeCount) / static_cast<double>(possiblePairs);
 }
 
 void Allocator::runAllocation() {
@@ -115,24 +159,26 @@ void Allocator::runAllocation() {
         c.matchedCompany = -1;
         c.nextPrefIdx = 0;
         pool.push(id);
+        ++metrics_.queuePushes;
     }
 
     while (!pool.empty()) {
         int candId = pool.front();
         pool.pop();
+        ++metrics_.queuePops;
 
         Candidate& cand = candidates_.at(candId);
 
-        if (cand.nextPrefIdx >= cand.preferenceList.size()) {
-            const std::string reason = cand.preferenceList.empty()
-                ? "no_acceptable_opportunities"
-                : "all_acceptable_opportunities_rejected";
+        const auto& edges = preferenceGraph_.candidateEdges.at(candId);
+        if (cand.nextPrefIdx >= edges.size()) {
+            const std::string reason = unmatchedReason(candId);
             recordEvent("unmatched", candId, -1, 0.0, -1, reason);
             continue;
         }
 
-        int compId = cand.preferenceList[cand.nextPrefIdx];
+        int compId = edges[cand.nextPrefIdx];
         cand.nextPrefIdx++;
+        ++metrics_.proposals;
 
         Company& comp = companies_.at(compId);
         double score = getScore(candId, compId);
@@ -140,16 +186,23 @@ void Allocator::runAllocation() {
 
         if (comp.hasOpenSeat()) {
             comp.heldSeats.push({score, candId});
+            ++metrics_.seatHeapPushes;
             cand.matchedCompany = compId;
             recordEvent("accepted", candId, compId, score, -1, "accepted_open_seat");
         } else {
+            ++metrics_.companyRankComparisons;
             auto [weakestScore, weakestId] = comp.heldSeats.top();
+            recordEvent("competition", candId, compId, score, weakestId,
+                        "compare_with_weakest_heap_holder");
 
             const bool outranksWeakest = score > weakestScore ||
                 (score == weakestScore && candId < weakestId);
             if (outranksWeakest) {
                 comp.heldSeats.pop();
+                ++metrics_.seatHeapPops;
                 comp.heldSeats.push({score, candId});
+                ++metrics_.seatHeapPushes;
+                ++metrics_.displacements;
                 cand.matchedCompany = compId;
                 recordEvent("accepted", candId, compId, score, weakestId,
                             score == weakestScore ? "higher_priority_equal_score" : "outscored_weakest_holder");
@@ -159,12 +212,21 @@ void Allocator::runAllocation() {
                 recordEvent("displaced", weakestId, compId, weakestScore, candId,
                             "replaced_by_higher_company_priority");
                 pool.push(weakestId); // re-enters the pool
+                ++metrics_.queuePushes;
             } else {
                 recordEvent("rejected", candId, compId, score, weakestId,
                             score == weakestScore ? "lost_equal_score_tiebreak" : "score_below_cutoff");
                 pool.push(candId);
+                ++metrics_.rejections;
+                ++metrics_.queuePushes;
             }
         }
+    }
+
+    for (const int id : orderedCandidateIds) {
+        const Candidate& candidate = candidates_.at(id);
+        recordEvent("completion", id, candidate.matchedCompany, 0.0, -1,
+                    candidate.matchedCompany == -1 ? unmatchedReason(id) : "final_assignment");
     }
 
     const auto violations = validateAllocation();
@@ -196,7 +258,7 @@ std::string Allocator::unmatchedReason(int candidateId) const {
     const Candidate& candidate = candidates_.at(candidateId);
     if (candidate.matchedCompany != -1) return {};
     return candidate.preferenceList.empty()
-        ? "no_acceptable_opportunities"
+        ? (candidate.eligibilityFilteredCount > 0 ? "no_eligible_opportunities" : "no_acceptable_opportunities")
         : "all_acceptable_opportunities_rejected";
 }
 

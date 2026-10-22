@@ -2,6 +2,7 @@
 #include <string>
 #include <set>
 #include <vector>
+#include <optional>
 
 struct Candidate {
     int id;
@@ -10,6 +11,12 @@ struct Candidate {
     double cgpa;         
     std::string sector;    
     std::string location;   
+
+    std::set<std::string> qualifications;
+    std::vector<std::string> preferredLocations;
+    std::vector<std::string> sectorInterests;
+    std::optional<bool> priorParticipation;
+    std::size_t eligibilityFilteredCount = 0;
 
     // If present in input, this is the candidate's ordered acceptable list.
     // An empty explicit list means the candidate has no acceptable options.

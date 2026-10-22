@@ -130,6 +130,17 @@ std::vector<int> parsePreferences(const std::string& field,
     return preferences;
 }
 
+std::optional<bool> parseOptionalBoolean(const std::string& field,
+                                         const std::string& path,
+                                         std::size_t lineNumber) {
+    const std::string value = trim(field);
+    if (value.empty()) return std::nullopt;
+    if (value == "true" || value == "1") return true;
+    if (value == "false" || value == "0") return false;
+    throw std::runtime_error(path + ":" + std::to_string(lineNumber) +
+                             ": prior_participation must be true, false, 1, 0, or empty");
+}
+
 std::vector<std::string> splitSkills(const std::string& value) {
     std::vector<std::string> result;
     std::stringstream stream(value);
@@ -166,8 +177,15 @@ std::unordered_map<int, Candidate> loadCandidates(const std::string& path) {
     const std::vector<std::string> v2Header = {
         "id", "name", "skills", "cgpa", "sector", "location", "preferred_company_ids"
     };
-    const bool hasPreferences = header == v2Header;
-    if (!hasPreferences) requireHeader(header, v1Header, path);
+    const std::vector<std::string> v3Header = {
+        "id", "name", "skills", "cgpa", "sector", "location", "preferred_company_ids",
+        "qualifications", "preferred_locations", "sector_interests", "prior_participation"
+    };
+    const bool hasV3 = header == v3Header;
+    const bool hasPreferences = header == v2Header || hasV3;
+    if (header != v1Header && header != v2Header && !hasV3) {
+        requireHeader(header, v1Header, path);
+    }
 
     std::unordered_map<int, Candidate> candidates;
     std::string line;
@@ -201,6 +219,12 @@ std::unordered_map<int, Candidate> loadCandidates(const std::string& path) {
         if (hasPreferences) {
             candidate.submittedPreferences = parsePreferences(fields[6], path, lineNumber);
         }
+        if (hasV3) {
+            for (const auto& value : splitStr(fields[7], ';')) candidate.qualifications.insert(value);
+            candidate.preferredLocations = splitStr(fields[8], ';');
+            candidate.sectorInterests = splitStr(fields[9], ';');
+            candidate.priorParticipation = parseOptionalBoolean(fields[10], path, lineNumber);
+        }
         if (!candidates.emplace(candidate.id, std::move(candidate)).second) {
             throw std::runtime_error(path + ":" + std::to_string(lineNumber) +
                                      ": duplicate candidate ID");
@@ -215,10 +239,15 @@ std::unordered_map<int, Company> loadCompanies(const std::string& path) {
     if (!file.is_open()) {
         throw std::runtime_error("Could not open companies file: " + path);
     }
-    const std::vector<std::string> expectedHeader = {
+    const std::vector<std::string> v1Header = {
         "id", "name", "required_skills", "seats", "sector", "location"
     };
-    requireHeader(readHeader(file, path), expectedHeader, path);
+    const std::vector<std::string> v2Header = {
+        "id", "name", "required_skills", "seats", "sector", "location", "required_qualifications"
+    };
+    const auto header = readHeader(file, path);
+    const bool hasQualifications = header == v2Header;
+    if (header != v1Header && !hasQualifications) requireHeader(header, v1Header, path);
 
     std::unordered_map<int, Company> companies;
     std::string line;
@@ -227,9 +256,9 @@ std::unordered_map<int, Company> loadCompanies(const std::string& path) {
         ++lineNumber;
         if (trim(line).empty()) continue;
         const auto fields = parseCsvRow(line, path, lineNumber);
-        if (fields.size() != expectedHeader.size()) {
+        if (fields.size() != header.size()) {
             throw std::runtime_error(path + ":" + std::to_string(lineNumber) +
-                                     ": expected " + std::to_string(expectedHeader.size()) +
+                                     ": expected " + std::to_string(header.size()) +
                                      " fields but found " + std::to_string(fields.size()));
         }
 
@@ -245,6 +274,8 @@ std::unordered_map<int, Company> loadCompanies(const std::string& path) {
                                      ": company name is required");
         }
         for (const auto& skill : splitSkills(fields[2])) company.requiredSkills.insert(skill);
+        if (hasQualifications)
+            for (const auto& qualification : splitStr(fields[6], ';')) company.requiredQualifications.insert(qualification);
         company.seats = parseInt(fields[3], "seats", path, lineNumber);
         if (company.seats <= 0) {
             throw std::runtime_error(path + ":" + std::to_string(lineNumber) +
