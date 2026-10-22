@@ -38,10 +38,39 @@ def test_loader_and_unsupported_schema(export_dir):
 
     path = export_dir / "companies.json"
     company_data = json.loads(path.read_text())
-    company_data["schema_version"] = 2
+    company_data["schema_version"] = 3
     path.write_text(json.dumps(company_data))
     with pytest.raises(ExportLoadError, match="schema_version"):
         load_exports(export_dir)
+
+
+def test_loader_accepts_v2_exports_with_allocation_trace(export_dir):
+    candidate_path = export_dir / "candidates.json"
+    candidate_data = json.loads(candidate_path.read_text())
+    candidate_data.update({
+        "schema_version": 2,
+        "policy_version": "prototype-score-v1",
+        "algorithm": "candidate-proposing-deferred-acceptance",
+        "tie_break_policy": "candidate ID ascending",
+        "allocation_trace": [{
+            "sequence": 1, "type": "proposal", "candidate_id": "C001",
+            "company_id": "CO1", "score": 74.3,
+            "displaced_candidate_id": None, "reason_code": "candidate_proposes",
+        }],
+    })
+    candidate_data["candidates"][0]["allocation"]["reason_code"] = "all_acceptable_opportunities_rejected"
+    candidate_data["candidates"][0]["top_choices"][0]["reason_code"] = "seat_held_by_higher_company_priority"
+    candidate_path.write_text(json.dumps(candidate_data))
+
+    company_path = export_dir / "companies.json"
+    company_data = json.loads(company_path.read_text())
+    company_data["schema_version"] = 2
+    company_path.write_text(json.dumps(company_data))
+
+    data = load_exports(export_dir)
+    assert data.candidates_export.algorithm == "candidate-proposing-deferred-acceptance"
+    assert data.candidates_export.allocation_trace[0].reason_code == "candidate_proposes"
+    assert data.candidates["C001"].allocation.reason_code == "all_acceptable_opportunities_rejected"
 
 
 def test_skill_aliases_unknowns_and_gap_tie_order(export_dir):
@@ -88,7 +117,8 @@ def test_explain_matched_and_not_reached_are_taken_from_exports(export_dir):
 
 
 def test_api_health_summary_gap_and_unknown_candidate(export_dir):
-    config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb")
+    config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
+                      llm_provider="mock", llm_model="", llm_api_key="")
     client = TestClient(create_app(config))
     health = client.get("/health").json()
     assert health["status"] == "ok"
@@ -141,7 +171,8 @@ def test_guardrails_input_privacy_scope_and_number_tripwire():
 
 
 def test_chat_advisory_privacy_scope_skill_gap_and_debug(export_dir):
-    config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb")
+    config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
+                      llm_provider="mock", llm_model="", llm_api_key="")
     client = TestClient(create_app(config))
     empty = client.post("/chat", json={"candidate_id": "C001", "message": "  "})
     long = client.post("/chat", json={"candidate_id": "C001", "message": "x" * 1001})
@@ -188,7 +219,8 @@ def test_chat_advisory_privacy_scope_skill_gap_and_debug(export_dir):
 
 
 def test_chat_uses_missing_skill_guide_and_returns_source(export_dir):
-    config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb")
+    config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
+                      llm_provider="mock", llm_model="", llm_api_key="")
     app = create_app(config)
     embedder = LocalEmbedder()
     chunk = Chunk(

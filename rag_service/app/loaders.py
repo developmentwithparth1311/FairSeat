@@ -20,6 +20,7 @@ class Allocation(BaseModel):
     company_id: str | None = None
     preference_rank: int | None = None
     score: float | None = None
+    reason_code: str | None = None
 
 
 class TopChoice(BaseModel):
@@ -31,7 +32,19 @@ class TopChoice(BaseModel):
     matched_skills: list[str] = Field(default_factory=list)
     missing_skills: list[str] = Field(default_factory=list)
     outcome: Literal["matched", "lost_seat", "not_reached"]
+    reason_code: str | None = None
     company_cutoff_score: float | None = None
+
+
+class AllocationTraceEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    sequence: int
+    type: str
+    candidate_id: str
+    company_id: str | None = None
+    score: float
+    displaced_candidate_id: str | None = None
+    reason_code: str
 
 
 class Candidate(BaseModel):
@@ -52,6 +65,10 @@ class CandidateExport(BaseModel):
     generated_at: str
     scoring_weights: dict[str, float]
     candidates: list[Candidate]
+    policy_version: str | None = None
+    algorithm: str | None = None
+    tie_break_policy: str | None = None
+    allocation_trace: list[AllocationTraceEvent] = Field(default_factory=list)
 
 
 class Company(BaseModel):
@@ -107,8 +124,8 @@ def load_exports(export_dir: Path) -> ExportData:
     except ValidationError as exc:
         raise ExportLoadError(f"Invalid SAE export data: {exc}") from exc
 
-    if candidates.schema_version != 1 or companies.schema_version != 1:
+    if candidates.schema_version not in {1, 2} or companies.schema_version not in {1, 2}:
         raise ExportLoadError(
-            "Unsupported SAE export schema_version; this service supports version 1"
+            "Unsupported SAE export schema_version; this service supports versions 1 and 2"
         )
     return ExportData(candidates_export=candidates, companies_export=companies)
