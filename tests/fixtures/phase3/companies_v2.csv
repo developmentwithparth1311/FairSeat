@@ -1,0 +1,3 @@
+id,name,required_skills,seats,sector,location,required_qualifications
+10,Synthetic Opportunity A,SQL;Python,2,IT,Pune,degree_a
+20,Synthetic Opportunity B,Design;Communication,2,Design,Delhi,degree_b

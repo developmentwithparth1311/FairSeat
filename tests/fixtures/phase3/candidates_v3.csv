@@ -1,0 +1,5 @@
+id,name,skills,cgpa,sector,location,preferred_company_ids,qualifications,preferred_locations,sector_interests,prior_participation
+1,Synthetic Candidate A,SQL;Python,8.1,IT,Pune,10;20,degree_a,Pune;Delhi,IT;Design,false
+2,Synthetic Candidate B,Design;Communication,7.4,Design,Delhi,20;10,degree_b,Delhi,Design,true
+3,Synthetic Candidate C,Finance;SQL,8.8,Finance,Chennai,10,degree_a;degree_b,Chennai;Pune,Finance;IT,
+4,Synthetic Candidate D,Cloud;Python,6.9,IT,Bengaluru,,degree_a,Bengaluru,IT,false
