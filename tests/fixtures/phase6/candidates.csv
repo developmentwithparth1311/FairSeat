@@ -1,0 +1,4 @@
+id,name,skills,cgpa,sector,location,preferred_company_ids
+1,Lower Priority,SQL,6.0,IT,Pune,10;20
+2,Higher Priority,SQL,9.0,IT,Pune,10
+3,Unmatched,SQL,5.5,IT,Pune,10

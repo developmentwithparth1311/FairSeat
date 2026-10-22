@@ -1,0 +1,4 @@
+id,name,required_skills,seats,sector,location
+10,First Choice,SQL,1,IT,Pune
+20,Second Choice,SQL,1,IT,Pune
+30,Open Seat,Java,1,Design,Delhi
