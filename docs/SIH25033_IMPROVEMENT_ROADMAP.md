@@ -61,8 +61,8 @@ the UI is built around them.
 
 | Build phase | Name | Main outcome | Depends on | Status |
 |---|---|---|---|---|
-| 0 | Baseline and requirements | Confirm current behavior, map SIH criteria, draft data contract and demo fixtures | Existing repository | Ready to begin |
-| 1 | Matching model and correctness | Explicit eligibility, rankings, deterministic ties, allocation explanations, correctness checks | Phase 0 contract | Planned |
+| 0 | Baseline and requirements | Confirm current behavior, map SIH criteria, draft data contract and demo fixtures | Existing repository | Complete |
+| 1 | Matching model and correctness | Explicit acceptable lists, rankings, deterministic ties, allocation explanations, correctness checks | Phase 0 contract | Complete |
 | 2 | Data Structures lab | Bipartite graph, trace events, operation counters, complexity and benchmark report | Phase 1 allocation model | Planned |
 | 3 | SIH criteria and fairness simulation | Add missing profile fields and policy-driven scenario metrics | Phase 0 policy map; Phase 1 contract | Planned |
 | 4 | Frontend prototype | Dashboard, inputs, run flow, results/explanations, algorithm lab | Phases 1–3 APIs and output schema | Planned |
@@ -108,6 +108,8 @@ the UI is built around them.
 - `docs/DATA_DICTIONARY.md` with field types, definitions, optionality,
   sensitivity, and current status (confirmed, prototype assumption, or needs
   verification).
+- `docs/PHASE0_BASELINE.md` with source-inspected current behavior, existing
+  data structures, sample-data issues, and prior verification evidence.
 - Versioned example input/output fixtures under `tests/fixtures/`.
 - Baseline behavior and known limitations noted in the design docs.
 
@@ -138,6 +140,8 @@ participation rule will be invented during this phase.
 **Deliverables**
 
 - Updated C++ model/parser/scoring/allocator and versioned explanation export.
+- `docs/ALLOCATION_POLICY.md` recording prototype assumptions, ranking/tie
+  rules, eligibility boundary, and the exact stability guarantee.
 - Written algorithm description, tie-break rules, and correctness tests.
 
 **Exit gate**

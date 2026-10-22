@@ -20,21 +20,24 @@ each other.
 
 ## How It Works
 
-1. **Score** — every candidate is scored against every company using skill
-   overlap, CGPA, and sector/location preference alignment.
-2. **Rank** — each candidate's scores are sorted into a preference list
-   (most-preferred company first).
+1. **Score** — candidate-company fit is computed from skill overlap, CGPA,
+   and sector/location alignment.
+2. **Rank** — when an explicit `preferred_company_ids` column is supplied,
+   its order is used and is treated as the candidate's acceptable options.
+   Legacy six-column files keep score-ranked choices (score descending, then
+   company ID ascending).
 3. **Allocate** — candidates are processed one at a time from a queue:
    - If their top remaining choice has an open seat, they're placed.
-   - If the seat is full, they're compared against the *weakest* candidate
-     currently holding a seat there. Higher score → they take the seat and
-     displace the weaker candidate (who re-enters the queue). Lower score →
-     they move on to their next preference.
-4. **Terminate** — the loop ends when every candidate is placed or has
-   exhausted their preference list.
+   - If the seat is full, the candidate is compared against the weakest
+     holder. Higher score wins; equal scores go to the lower candidate ID.
+     A displaced candidate returns to the queue.
+4. **Validate** — capacity, one-seat-per-candidate, acceptable assignments,
+   and blocking pairs are checked before the result is accepted.
 
-This guarantees the result is stable — the same mathematical guarantee
-Gale-Shapley provides.
+The allocator is stable relative to the explicit/generated preference rankings
+and company ranking rules documented in
+[docs/ALLOCATION_POLICY.md](docs/ALLOCATION_POLICY.md). It does not promise a
+maximum total score or encode official PMIS policy.
 
 ## Data Structures Used
 
@@ -44,6 +47,7 @@ Gale-Shapley provides.
 | **Min-Heap** (`priority_queue`, size = seat count) | `Company::heldSeats` | Top of heap = weakest currently-held candidate → O(1) peek, O(log seats) displacement instead of scanning all seat-holders |
 | **Queue** (`std::queue`) | `pool` in `Allocator::runAllocation` | Drives the main loop: holds not-yet-placed candidates, re-enqueues anyone displaced |
 | **Sorting** (`std::sort`) | `Allocator::buildPreferenceLists` | Run once per candidate to turn raw scores into a ranked preference list |
+| **Trace vector** (`std::vector`) | `Allocator::allocationTrace` | Stores proposal, acceptance, rejection, displacement, and unmatched events |
 
 ## Project Structure
 
@@ -85,6 +89,11 @@ the requested explanation-export number at 7; option 6 is currently unused.
 id,name,skills(;-separated),cgpa,sector,location
 ```
 
+An optional seventh candidate column, `preferred_company_ids` (semicolon
+separated), supplies the candidate's ranked acceptable companies. If the
+column is present but empty, the candidate has no acceptable companies. If it
+is absent, the legacy score-ranked behavior is used.
+
 **`companies.csv`**
 ```
 id,name,required_skills(;-separated),seats,sector,location
@@ -100,6 +109,10 @@ Each candidate-company score (0–100) is a weighted sum of:
 - Location match — 10%
 
 Weights are adjustable in `src/scoring.cpp`.
+
+These are prototype fit weights. Required skills are currently a soft score
+component, not a hard eligibility check. CGPA is validated to 0–10 but no
+minimum is imposed. Official scheme constraints have not been inferred.
 
 ## Extending
 

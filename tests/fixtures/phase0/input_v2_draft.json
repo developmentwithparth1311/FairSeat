@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "fixture_status": "phase0_design_draft_not_accepted_runtime_schema",
+  "dataset_id": "phase0-mechanics-synthetic-001",
+  "policy": {
+    "id": "phase0-unresolved",
+    "note": "Tie policy and official eligibility rules are intentionally unresolved; this fixture is for contract discussion."
+  },
+  "candidates": [
+    {
+      "id": "C001",
+      "name": "Synthetic Candidate One",
+      "skills": ["SQL"],
+      "qualification": {"level": "undergraduate", "field": "computer-science"},
+      "cgpa": 8.0,
+      "preferred_opportunity_ids": ["I101"],
+      "acceptable_locations": ["Pune"],
+      "sector_interests": ["IT"],
+      "prior_participation": null
+    },
+    {
+      "id": "C002",
+      "name": "Synthetic Candidate Two",
+      "skills": ["SQL"],
+      "qualification": {"level": "undergraduate", "field": "computer-science"},
+      "cgpa": 8.0,
+      "preferred_opportunity_ids": ["I101"],
+      "acceptable_locations": ["Pune"],
+      "sector_interests": ["IT"],
+      "prior_participation": null
+    },
+    {
+      "id": "C003",
+      "name": "Synthetic Candidate Three",
+      "skills": ["Design"],
+      "qualification": {"level": "undergraduate", "field": "design"},
+      "cgpa": 7.5,
+      "preferred_opportunity_ids": [],
+      "acceptable_locations": [],
+      "sector_interests": [],
+      "prior_participation": null
+    }
+  ],
+  "opportunities": [
+    {
+      "id": "I101",
+      "name": "Synthetic IT Internship",
+      "required_skills": ["SQL"],
+      "required_qualifications": [],
+      "capacity": 1,
+      "location": "Pune",
+      "work_mode": "onsite",
+      "sector": "IT"
+    },
+    {
+      "id": "I102",
+      "name": "Synthetic Design Internship",
+      "required_skills": ["Figma"],
+      "required_qualifications": [],
+      "capacity": 2,
+      "location": "Delhi",
+      "work_mode": "onsite",
+      "sector": "Design"
+    }
+  ]
+}

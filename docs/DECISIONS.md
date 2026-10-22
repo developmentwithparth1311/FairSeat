@@ -114,3 +114,27 @@ Social Media, Statistics, Supply Chain.
   for verification before a public demo.
 - Cutoff access returns `std::optional<double>` so an open seat is represented
   explicitly as absent, including for any unusual negative score input.
+
+## Phase 7: SIH25033 improvement roadmap — Phase 1
+
+- Added an optional seventh candidate CSV column, `preferred_company_ids`.
+  When present, it is the explicit ordered set of acceptable companies; an
+  empty value means no acceptable options. Six-column legacy files keep the
+  original score-ranked candidate order.
+- The Phase 1 prototype policy keeps current fit components soft: skill
+  overlap 50%, CGPA 30%, sector 10%, location 10%. It adds no minimum CGPA,
+  hard skill threshold, affirmative-action rule, or prior-participation rule
+  without verified policy. See `docs/ALLOCATION_POLICY.md`.
+- Made deferred acceptance repeatable with ascending candidate-ID proposal
+  order. Company ranking is score descending, then candidate ID ascending;
+  equal-score challengers can displace a higher-ID holder.
+- Added CSV header/row/numeric/duplicate-ID/preference-reference validation,
+  basic quoted-comma and escaped-quote support, and positive company capacity
+  validation. Removed the stray instruction line from the sample candidate
+  CSV so the checked-in input passes strict row validation.
+- Added allocation trace events, unmatched reason codes, assignment/capacity
+  invariant checks, and a blocking-pair validator. The stability claim is
+  limited to the documented strict rankings and acceptable lists.
+- Explanation exports now use schema version 2 with policy/algorithm/tie
+  metadata, reason codes, and trace events. The Python service continues to
+  accept schema v1 and v2.

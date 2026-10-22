@@ -1,0 +1,27 @@
+{
+  "schema_version": 2,
+  "fixture_status": "phase0_expected_invariants_not_allocator_golden_output",
+  "dataset_id": "phase0-mechanics-synthetic-001",
+  "expected_invariants": {
+    "candidate_assigned_at_most_once": true,
+    "opportunity_capacity_never_exceeded": true,
+    "assignments_must_use_an_acceptable_eligible_pair": true,
+    "C003_has_no_submitted_acceptable_opportunities": true,
+    "I102_capacity": 2,
+    "I102_has_no_candidates_in_this_fixture_preference_lists": true
+  },
+  "expected_observations": [
+    {
+      "scenario": "C001_and_C002_compete_for_one_I101_seat",
+      "expected": "At most one can be assigned to I101; winner is intentionally unspecified until Phase 1 defines a deterministic, documented tie policy."
+    },
+    {
+      "scenario": "C003_has_an_empty_preference_list",
+      "expected": "C003 remains unmatched with an explicit no-acceptable-opportunity reason."
+    },
+    {
+      "scenario": "I102_has_two_seats_and_no_proposers",
+      "expected": "Both I102 seats remain open."
+    }
+  ]
+}
