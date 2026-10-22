@@ -59,5 +59,3 @@ id,name,skills,cgpa,sector,location
 58,Gaurav Gupta,Labor Law;Employee Relations;Recruitment;Payroll;Illustrator,6.1,HR,Chennai
 59,Abhinav Gupta,Inventory Management;Supply Chain,8.0,Operations,Kolkata
 60,Swati Malhotra,Excel;Inventory Management;Recruitment,6.2,Operations,Kolkata
-Replace data/companies.csv with this (15 companies, 50 seats total):
-
