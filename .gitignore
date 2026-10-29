@@ -1,6 +1,13 @@
 # Build artifacts
 *.o
 allocator_app
+allocator_runner
+benchmarks/allocator_benchmark
+tools/phase3_scenarios
+tests/scoring_test
+tests/allocator_test
+tests/explain_export_test
+tests/export_fixture/
 
 # OS / Editor files
 .DS_Store
@@ -8,6 +15,7 @@ allocator_app
 .idea/
 .env
 .index/
+rag_service/.data/
 exports/*.json
 __pycache__/
 .pytest_cache/
