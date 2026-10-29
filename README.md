@@ -14,25 +14,28 @@ allocator checks seat capacity, assignment consistency, and blocking pairs
 under the configured preference rules.
 
 The project also includes a local browser interface and a Python service. The
-service invokes the C++ engine and returns its results to the interface. The
-candidate portal uses short-lived JWT bearer tokens for SQLite-backed,
-fictional demo profiles. Candidates can review their own result and ask the
-retrieval-augmented assistant for guidance; it does not participate in
-allocation. Allocator tools use a separate admin role.
+service invokes the C++ engine using profiles, preferences, and opportunities
+stored in SQLite. Candidate and administrator logins use separate JWT-protected
+views. A new local database starts without a published allocation. An
+administrator can publish or reset a run; candidate pages refresh to show the
+latest status. Run history is retained. The candidate assistant explains a
+published result and does not participate in allocation.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  CSV[Candidate and company CSV] --> CORE[C++ scoring and allocation]
+  SEED[CSV seed records] --> DB[(SQLite profiles, preferences, opportunities)]
+  WEB[HTML, CSS and JavaScript interface] --> API[FastAPI service]
+  API --> DB
+  DB --> INPUT[Temporary allocator input]
+  INPUT --> CORE[C++ scoring and allocation]
   CORE --> JSON[Versioned explanation JSON]
-  CSV --> API[FastAPI service]
   API --> CORE
   JSON --> API
-  API --> WEB[HTML, CSS and JavaScript interface]
   API --> RAG[Retrieval-augmented assistant]
   KB[Local Markdown knowledge base] --> RAG
-  RAG --> CHAT[Candidate portal or terminal client]
+  RAG --> WEB
 ```
 
 ## Matching policy
@@ -63,13 +66,14 @@ guarantee a maximum total score, fairness, or compliance with all scheme rules.
 - **API:** Python, FastAPI, Uvicorn, and Pydantic
 - **Interface:** HTML, CSS, and vanilla JavaScript
 - **Assistant:** Local feature-hashing retrieval by default, optional Sentence
-  Transformers/FAISS reindexing, and an optional Gemini API client
-- **Data:** CSV inputs, JSON explanations, and a local SQLite account database;
-  no database server is required
+  Transformers/FAISS reindexing, and optional Gemini or Groq chat completion
+- **Data:** CSV seed inputs, JSON explanations, and local SQLite databases for
+  accounts, candidate profiles, preferences, and allocation state; no database
+  server is required
 - **Build and verification:** Make, `g++`, C++ checks, and pytest
 
 The assistant defaults to a deterministic local mock provider and builds a
-local feature-hashing index without downloading a model. Gemini and a
+local feature-hashing index without downloading a model. Gemini, Groq, and a
 Sentence Transformer index are optional. No machine-learning model is trained
 for allocation.
 
@@ -99,13 +103,12 @@ test -f .env || cp .env.example .env
 uvicorn app.main:app --host 127.0.0.1 --reload --no-access-log --port 8000
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The interface supports
-CSV validation and preview, allocation, result explanations, company
-capacity, allocation-trace replay, synthetic policy scenarios, and a
-candidate portal with a result-aware chat. Browser allocations use temporary
-files and do not overwrite the saved exports. The demo accounts and shared
-password are documented in `rag_service/README.md`; this is a local prototype,
-not production authentication.
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Candidates can edit their
+own profile and ranked preferences and see their allocation status and
+explanation. Administrators can review candidates, update opportunity
+requirements and seats, run or reset allocations, inspect run history, and
+open the allocation trace and synthetic policy scenarios. The seeded demo
+accounts and initial passwords are documented in `rag_service/README.md`.
 
 ## Input formats
 

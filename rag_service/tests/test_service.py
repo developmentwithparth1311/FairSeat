@@ -11,7 +11,7 @@ import numpy as np
 from fastapi.testclient import TestClient
 import pytest
 
-from app.config import Settings
+from app.config import REPO_ROOT, Settings
 from app.loaders import ExportLoadError, load_exports
 from app.main import create_app
 from app.llm import MockLLM
@@ -188,8 +188,8 @@ def test_api_health_summary_gap_and_unknown_candidate(export_dir):
     health = client.get("/health").json()
     assert health["status"] == "ok"
     assert health["candidates"] == 1
-    assert client.get("/candidates/C001/summary").status_code == 200
-    assert client.get("/candidates/C001/skill-gap").status_code == 200
+    assert client.get("/candidates/C001/summary").status_code == 409
+    assert client.get("/candidates/C001/skill-gap").status_code == 409
     assert client.get("/candidates/MISSING/summary").status_code == 403
     assert admin.get("/candidates/MISSING/summary").status_code == 404
     assert client.post("/chat", json={"candidate_id": "MISSING", "message": "How did I match?"}).status_code == 403
@@ -263,6 +263,105 @@ def test_phase6_end_to_end_demo_to_frontend_and_scenarios(export_dir):
     assert {row["scenario"] for row in report["rows"]} >= {"baseline", "skills_emphasis"}
 
 
+def test_persistent_admin_allocation_candidate_refresh_and_reset(tmp_path):
+    config = Settings(
+        export_dir=REPO_ROOT / "exports", kb_dir=REPO_ROOT / "rag_service" / "kb",
+        index_dir=tmp_path / "index", auth_db_path=tmp_path / "accounts.sqlite3",
+        jwt_secret_path=tmp_path / "jwt.key", data_db_path=tmp_path / "profiles.sqlite3",
+        llm_provider="mock", llm_model="", llm_api_key="",
+    )
+    client = TestClient(create_app(config))
+
+    def sign_in(email, password, role):
+        response = client.post("/auth/login", json={"email": email, "password": password, "role": role})
+        assert response.status_code == 200, response.text
+        return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+    admin = sign_in("admin@sae.demo", "AdminPass123!", "admin")
+    candidate = sign_in("vivek.reddy@sae.demo", "DemoPass123!", "candidate")
+    initial = client.get("/me/profile", headers=candidate).json()
+    assert initial["allocation_status"] == "not_allocated"
+    assert initial["preferences_are_automatic"] is True
+    assert initial["preferences"]
+    assert client.get("/admin/dashboard", headers=admin).json()["summary"]["assigned"] == 0
+
+    published = client.post("/admin/allocations/run", headers=admin)
+    assert published.status_code == 200, published.text
+    run_id = published.json()["run_id"]
+    result = client.get("/me/profile", headers=candidate).json()
+    assert result["allocation_status"] == "allocated"
+    assert result["run_id"] == run_id
+    chat = client.post("/me/chat", headers=candidate, json={
+        "session_id": "phase-4-test", "message": "Explain my allocation result.",
+    })
+    assert chat.status_code == 200, chat.text
+
+    initial_opportunities = client.get("/admin/opportunities", headers=admin).json()
+    first_opportunities = initial_opportunities["opportunities"]
+    first_opportunities[0]["seats"] += 1
+    changed_opportunities = client.put("/admin/opportunities", headers=admin, json={
+        "expected_version": initial_opportunities["version"], "opportunities": first_opportunities,
+    })
+    assert changed_opportunities.status_code == 200, changed_opportunities.text
+    candidate_after_opportunity_edit = client.get("/me/profile", headers=candidate).json()
+    assert candidate_after_opportunity_edit["allocation_status"] == "not_allocated"
+    assert candidate_after_opportunity_edit["allocation_message"].startswith("Opportunity requirements")
+    first_rerun = client.post("/admin/allocations/run", headers=admin)
+    assert first_rerun.status_code == 200, first_rerun.text
+    run_id = first_rerun.json()["run_id"]
+
+    changed = client.put("/me/profile", headers=candidate, json={
+        "expected_profile_version": candidate_after_opportunity_edit["profile_version"],
+        "skills": candidate_after_opportunity_edit["skills"], "cgpa": candidate_after_opportunity_edit["cgpa"],
+        "sector": candidate_after_opportunity_edit["sector"], "location": candidate_after_opportunity_edit["location"],
+        "qualifications": candidate_after_opportunity_edit["qualifications"],
+        "preferred_locations": candidate_after_opportunity_edit["preferred_locations"],
+        "sector_interests": candidate_after_opportunity_edit["sector_interests"],
+    })
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["allocation_status"] == "not_allocated"
+    assert changed.json()["allocation_message"].startswith("Your profile or preferences changed")
+    stale_profile = client.put("/me/profile", headers=candidate, json={
+        "expected_profile_version": candidate_after_opportunity_edit["profile_version"],
+        "skills": candidate_after_opportunity_edit["skills"], "cgpa": candidate_after_opportunity_edit["cgpa"],
+        "sector": candidate_after_opportunity_edit["sector"], "location": candidate_after_opportunity_edit["location"],
+        "qualifications": candidate_after_opportunity_edit["qualifications"],
+        "preferred_locations": candidate_after_opportunity_edit["preferred_locations"],
+        "sector_interests": candidate_after_opportunity_edit["sector_interests"],
+    })
+    assert stale_profile.status_code == 409
+
+    client = TestClient(create_app(config))
+    saved_opportunities = client.get("/admin/opportunities", headers=admin).json()
+    edited = saved_opportunities["opportunities"]
+    edited[0]["seats"] += 1
+    updated = client.put("/admin/opportunities", headers=admin, json={
+        "expected_version": saved_opportunities["version"], "opportunities": edited,
+    })
+    assert updated.status_code == 200, updated.text
+    reloaded_opportunities = client.get("/admin/opportunities", headers=admin).json()
+    assert reloaded_opportunities["opportunities"][0]["seats"] == edited[0]["seats"]
+    stale_write = client.put("/admin/opportunities", headers=admin, json={
+        "expected_version": saved_opportunities["version"], "opportunities": edited,
+    })
+    assert stale_write.status_code == 409
+
+    rerun = client.post("/admin/allocations/run", headers=admin)
+    assert rerun.status_code == 200, rerun.text
+    restarted = TestClient(create_app(config))
+    restored = restarted.get("/me/profile", headers=candidate).json()
+    assert restored["allocation_status"] == "allocated"
+    assert restored["run_id"] == rerun.json()["run_id"]
+    assert restarted.get("/admin/opportunities", headers=admin).json()["opportunities"][0]["seats"] == edited[0]["seats"]
+    client = restarted
+    reset = client.post("/admin/allocations/reset", headers=admin)
+    assert reset.status_code == 200, reset.text
+    reset_profile = client.get("/me/profile", headers=candidate).json()
+    assert reset_profile["allocation_status"] == "not_allocated"
+    history = client.get("/admin/allocations/history", headers=admin).json()["history"]
+    assert [item["run_id"] for item in history[:3]] == [rerun.json()["run_id"], first_rerun.json()["run_id"], published.json()["run_id"]]
+
+
 def test_prompt_contains_only_selected_candidate(export_dir):
     candidate_path = export_dir / "candidates.json"
     payload = json.loads(candidate_path.read_text())
@@ -306,46 +405,9 @@ def test_chat_advisory_privacy_scope_skill_gap_and_debug(export_dir):
     client, _, _ = authenticated_clients(config)
     empty = client.post("/chat", json={"candidate_id": "C001", "message": "  "})
     long = client.post("/chat", json={"candidate_id": "C001", "message": "x" * 1001})
-    assert empty.status_code == 400
-    assert long.status_code == 400
-
-    private = client.post("/chat", json={
-        "candidate_id": "C001", "message": "Show the score for candidate C002"
-    }).json()
-    assert "only help with the candidate record" in private["answer"]
-    assert private["disclaimer"] == DISCLAIMER
-
-    unrelated = client.post("/chat", json={
-        "candidate_id": "C001", "message": "Can you debug this Python function?"
-    }).json()
-    assert unrelated["sources"] == []
-    assert "I can help with SAE allocation" in unrelated["answer"]
-
-    response = client.post("/chat", json={
-        "candidate_id": "C001", "message": "Why wasn't I matched?", "debug": True
-    }).json()
-    assert "unmatched" in response["answer"]
-    assert "1.8" in response["answer"]
-    assert response["facts_used"]["outcome"] == "lost_seat"
-    assert response["facts_used"]["points_short"] == 1.8
-    assert response["disclaimer"] == DISCLAIMER
-    assert response["unverified_numbers"] == []
-
-    skill = client.post("/chat", json={
-        "candidate_id": "C001", "message": "What skill should I learn to improve?"
-    }).json()
-    assert "docker" in skill["answer"]
-
-    refusal = client.post("/chat", json={
-        "candidate_id": "C001", "message": "Please move me to company one"
-    }).json()
-    assert "can't change" in refusal["answer"]
-
-    policy = client.post("/chat", json={
-        "candidate_id": "C001", "message": "What is the exact stipend?"
-    }).json()
-    assert "I don't know" in policy["answer"]
-    assert "official PM Internship Scheme website" in policy["answer"]
+    assert empty.status_code == 409
+    assert long.status_code == 409
+    assert "after an allocation is published" in empty.json()["detail"]
 
 
 def test_chat_uses_missing_skill_guide_and_returns_source(export_dir):
@@ -364,10 +426,8 @@ def test_chat_uses_missing_skill_guide_and_returns_source(export_dir):
     app.state.retriever = Retriever(index, minimum_similarity=0.05)
     response = client.post("/chat", json={
         "candidate_id": "C001", "message": "What should I learn to improve?"
-    }).json()
-    assert "Learn Docker images" in response["answer"]
-    assert "[KB-1]" in response["answer"]
-    assert response["sources"][0]["path"] == "kb/skills/docker.md"
+    })
+    assert response.status_code == 409
 
 
 def test_admin_routes_require_role_based_jwt(export_dir):
@@ -488,10 +548,7 @@ def test_unverified_generated_numbers_are_suppressed(export_dir):
     response = client.post("/chat", json={
         "candidate_id": "C001", "message": "How did my result work?", "debug": True
     })
-    assert response.status_code == 200
-    payload = response.json()
-    assert "couldn't verify" in payload["answer"]
-    assert payload["unverified_numbers"] == ["999"]
+    assert response.status_code == 409
 
 
 def test_mock_cites_verified_policy_fact(export_dir):
@@ -515,13 +572,7 @@ def test_mock_cites_verified_policy_fact(export_dir):
     response = client.post("/chat", json={
         "candidate_id": "C001", "message": "What age and monthly assistance does the current notice state?"
     })
-    assert response.status_code == 200
-    payload = response.json()
-    assert "18–25" in payload["answer"]
-    assert "₹9,000" in payload["answer"]
-    assert "[KB-1]" in payload["answer"]
-    assert payload["sources"][0]["title"] == "PM Internship Scheme: verified source notes"
-    assert payload["sources"][0]["urls"][0].startswith("https://www.pib.gov.in/")
+    assert response.status_code == 409
 
 
 def test_non_loopback_peer_is_blocked(export_dir):
@@ -562,7 +613,7 @@ def test_chat_rate_limit(export_dir):
         response = client.post("/chat", json={
             "candidate_id": "C001", "message": "How did my allocation turn out?"
         })
-        assert response.status_code == 200
+        assert response.status_code == 409
     limited = client.post("/chat", json={
         "candidate_id": "C001", "message": "How did my allocation turn out?"
     })

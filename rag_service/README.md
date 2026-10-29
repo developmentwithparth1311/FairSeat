@@ -1,8 +1,9 @@
 # SAE Candidate Assistant service
 
-The service provides a local browser demo, deterministic candidate summaries
-and skill gaps, plus an advisory RAG chat. The browser submits CSV data to the
-C++ engine through the local API; allocation logic remains in C++.
+The service provides a local browser demo, role-specific sign-in, persistent
+candidate profiles and ranked preferences, deterministic candidate summaries
+and skill gaps, plus an advisory RAG chat. Candidate profile and preference
+edits are saved in SQLite. Allocation logic remains in C++.
 
 ## Setup
 
@@ -17,13 +18,14 @@ test -f .env || cp .env.example .env
 uvicorn app.main:app --reload --no-access-log --port 8000
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000) for the browser demo. It
-loads the checked-in synthetic CSV sample, lets you validate and preview CSVs,
-run an allocation, inspect outcomes and the event trace, and load the seeded
-Phase 3 scenario report. The Candidate portal provides a result page and
-assistant for pre-created fictional profiles. These runs use temporary export
-files and do not overwrite the saved `exports/` data. The first browser
-allocation compiles the C++ runner with `make`; keep the repository's
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000) for the browser demo. Choose
+Candidate or Admin at sign-in. Candidate profiles and opportunities are seeded
+from the checked-in CSV files once into `rag_service/.data/sae.sqlite3`; profile
+and preference edits persist across service restarts. A fresh database starts
+with no published allocation, regardless of older JSON exports in `exports/`.
+The existing admin demo can validate and run CSV allocations and inspect the
+trace and scenario report. Those legacy demo runs remain session-only until
+the persistent allocation workflow is completed. Keep the repository's
 `config/allocation_policy_v2.conf` available.
 
 The service accepts direct loopback connections only and limits request sizes
@@ -82,16 +84,20 @@ Offline tests use a deterministic local embedder and mocked provider responses.
 The local index is ready automatically. `/admin/reindex` is optional and
 switches to the configured semantic embedding model when available.
 
-`LLM_PROVIDER=mock` works without an API key. To use Gemini, set
+`LLM_PROVIDER=mock` works without an API key. For Gemini, set
 `LLM_PROVIDER=gemini`, `LLM_MODEL` to an available Gemini model, and
-`GEMINI_API_KEY` in the untracked `.env` file. Gemini API usage and free-tier
-availability depend on Google's current quota and account terms. The CLI
-and candidate portal show a privacy notice and ask before the first external
-chat request in a session. With Gemini,
-the service sends minimized result/skill facts, the user's question, and up to
-two recent chat turns to Google's API. The prompt omits candidate name and ID;
-in-memory session state is capped at 1,000 sessions, cleared on data reload,
-and not written to disk.
+`GEMINI_API_KEY` in the untracked `.env` file. For Groq, set
+`LLM_PROVIDER=groq`, `LLM_MODEL` to a model enabled for your account, and
+`GROQ_API_KEY` there. The provider key remains on the server; do not add it to
+the frontend. The candidate portal shows the active provider and requests
+consent before the first external chat request in a session. External requests
+include minimized result/skill facts, the user's question, and up to two recent
+chat turns. The prompt omits candidate name and ID; in-memory session state is
+capped at 1,000 sessions, cleared on data reload, and not written to disk.
+
+After setting a provider, restart the service. To make an explicit live test
+using a fixed prompt with no candidate data, run `SAE_LIVE_LLM=1 python
+smoke_llm.py` from `rag_service/`.
 Use synthetic data unless you have authorization to process real records.
 
 ## Chat
@@ -127,8 +133,18 @@ curl -X POST http://127.0.0.1:8000/chat \
 | POST | `/auth/login` | Sign in and receive a short-lived JWT |
 | POST | `/auth/password` | Change password and revoke earlier tokens |
 | GET | `/auth/me` | Signed-in candidate or allocator profile |
-| GET | `/me/result` | Signed-in candidate's result and skill gap |
+| GET | `/me/profile` | Signed-in candidate profile, preferences, opportunities, and allocation status |
+| PUT | `/me/profile` | Save the signed-in candidate's editable profile fields |
+| PUT | `/me/preferences` | Save the signed-in candidate's ranked opportunity preferences |
+| GET | `/me/result` | Signed-in candidate's current allocation state and result when available |
 | POST | `/me/chat` | Signed-in candidate's result-aware assistant chat |
+| GET | `/admin/dashboard` | Saved profile counts, current run summary, and recent run history |
+| GET | `/admin/candidates` | Candidate records, preferences, and current outcomes |
+| GET/PUT | `/admin/opportunities` | Read and update saved opportunity requirements and capacity |
+| POST | `/admin/allocations/run` | Run the C++ allocator from saved profiles/preferences and publish atomically |
+| POST | `/admin/allocations/reset` | Clear the current run while preserving candidate inputs and run history |
+| GET | `/admin/allocations/current` | Read the current persisted allocation snapshot |
+| GET | `/admin/allocations/history` | Read recent published runs |
 | GET | `/demo/sample` | Checked-in synthetic CSV sample |
 | POST | `/demo/validate` | Validate CSVs with the C++ loader and return previews |
 | POST | `/demo/run` | Run the allocator and return results plus trace |
@@ -143,6 +159,13 @@ curl -X POST http://127.0.0.1:8000/chat \
 | POST | `/admin/accounts` | Create a candidate account tied to the current allocation |
 | POST | `/admin/accounts/{email}/reset-password` | Reset a candidate password |
 | POST | `/admin/accounts/{email}/status` | Activate/deactivate a candidate account |
+
+The browser portal starts with no current allocation. Candidate profile and
+preference changes are saved immediately to SQLite and mark the existing run
+stale. The administrator must run allocation again to publish results based on
+the new inputs. Candidate pages poll the service and update allocation status
+after a new run or reset. Initial accounts and passwords are for local
+demonstration only; change them before presenting on a shared machine.
 
 `kb/scheme_faq.md` now records dated official PIB/MCA source notes. It
 distinguishes the April 2026 update from older 2024 pilot information and
