@@ -25,8 +25,9 @@ dated sources in `kb/scheme_faq.md`.
 - Current sample records are demonstration data, not a verified PM Internship
   Scheme applicant or employer dataset.
 - Current browser runs reject non-synthetic records unless the local operator
-  explicitly enables `SAE_ALLOW_REAL_DATA`; the service has no individual
-  candidate login, consent workflow, or public deployment security model.
+  explicitly enables `SAE_ALLOW_REAL_DATA`. Candidate login is limited to
+  fictional demo profiles; there is no real-user identity, account recovery,
+  or public deployment security model.
 - The score is not a probability of success and the weighted score alone is
   not evidence of fairness.
 - The current allocator's stability claim must be bounded to the preference

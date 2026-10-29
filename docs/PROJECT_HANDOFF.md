@@ -351,9 +351,11 @@ assignment.
 - **Scenario report:** load a fixed-seed synthetic cohort/policy report and
   compare allocation rates, unmatched counts, score averages, assignment
   changes and seats.
-
-There is no chat widget in the static frontend. The assistant is available via
-the terminal client and `POST /chat` API.
+- **Candidate portal:** sign in to a fictional profile, review its allocation
+  and skill gaps, and use the result-aware assistant. Candidates only access
+  their own record.
+- **Allocator access:** sign in to validate and run allocations, view the
+  trace/scenario tools, and create or manage candidate accounts.
 
 ### HTTP endpoints
 
@@ -362,6 +364,12 @@ the terminal client and `POST /chat` API.
 | `GET /` | Serve the browser demo |
 | `GET /static/{file}` | Serve JavaScript and CSS |
 | `GET /health` | Export/provider readiness and privacy state; no secret key returned |
+| `GET /auth/demo-profiles` | List active demo profiles for the login form |
+| `POST /auth/login` | Sign in to candidate or allocator role |
+| `POST /auth/password` | Change password and revoke earlier tokens |
+| `GET /auth/me` | Return the signed-in profile |
+| `GET /me/result` | Return the signed-in candidate's result and skill gap |
+| `POST /me/chat` | Send a question from the signed-in candidate's chat |
 | `GET /demo/sample` | Read the checked-in sample CSV files |
 | `POST /demo/validate` | Validate CSVs with the C++ loader and return counts/previews |
 | `POST /demo/run` | Run the C++ allocation and return result/trace state |
@@ -370,14 +378,21 @@ the terminal client and `POST /chat` API.
 | `GET /candidates/{id}/summary` | Deterministic explanation from exports |
 | `GET /candidates/{id}/skill-gap` | Deterministic ranked missing-skill suggestions |
 | `POST /chat` | Candidate-scoped advisory assistant endpoint |
-| `POST /admin/reload` | Reload exports; protected by admin token |
-| `POST /admin/reindex` | Build/load retrieval index; protected by admin token |
+| `POST /admin/reload` | Reload exports; requires allocator JWT |
+| `POST /admin/reindex` | Build/load semantic retrieval index; requires allocator JWT |
+| `GET /admin/accounts` | List local candidate accounts; requires allocator JWT |
+| `POST /admin/accounts` | Create candidate account; requires allocator JWT |
+| `POST /admin/accounts/{email}/reset-password` | Reset candidate password; requires allocator JWT |
+| `POST /admin/accounts/{email}/status` | Activate/deactivate candidate account; requires allocator JWT |
 
 The two demo POST routes accept `candidates_csv` and `companies_csv` as CSV
 text. `/demo/run` also accepts `dataset_name` and a boolean `synthetic` flag;
 the flag must be true for demo records unless the operator deliberately enables
-`SAE_ALLOW_REAL_DATA=1`. `/chat` accepts `candidate_id`, optional `session_id`,
-`message`, and optional `debug`. Admin routes require `X-Admin-Token`.
+`SAE_ALLOW_REAL_DATA=1`. `/chat` accepts a candidate ID, optional session ID,
+message, and optional debug flag; it requires the candidate's bearer JWT.
+Candidate pages use `/me/result` and `/me/chat`, where the candidate ID is
+resolved by the service from the signed-in account. Allocator routes require an
+allocator-role bearer JWT.
 
 ## 8. Privacy and operational boundary
 
@@ -388,8 +403,9 @@ the flag must be true for demo records unless the operator deliberately enables
 - Per-process in-memory limits: chat 20/min, CSV validate/run 12/min, admin
   operations 5/min, other routes 120/min. These are local demo protections,
   not production distributed rate limiting.
-- Admin endpoints stay disabled unless `SAE_ADMIN_TOKEN` has at least 32
-  characters and is sent with `X-Admin-Token`; comparison is constant time.
+- Candidate and allocator accounts use one-hour HS256 JWTs. Salted PBKDF2
+  password hashes and token versions are stored in local SQLite; password
+  changes/resets and account deactivation revoke earlier tokens.
 - Non-synthetic browser allocation is off unless `SAE_ALLOW_REAL_DATA=1` is
   explicitly set by an authorized local operator.
 - Browser uploads/exports live in a temporary directory while that demo is
@@ -402,8 +418,13 @@ the flag must be true for demo records unless the operator deliberately enables
   before using real records with Gemini.
 - `rag_service/.env` may contain secrets and is ignored. Never paste secret
   values into this guide, a report or shared LLM context.
-- There is no candidate login, consent workflow, durable chat history, public
-  multi-user security model or production deployment design.
+- Candidate portal login uses fictional profiles, and allocator-managed
+  accounts can be added for the current allocation. Password changes, resets,
+  and deactivation are implemented. There is no public registration,
+  self-service account recovery, or production identity management.
+- Account data persists in SQLite. Chat history remains in process memory and
+  is not persisted. Gemini consent is requested before the first external
+  request in a candidate browser session.
 
 ## 9. Technology stack
 
@@ -413,11 +434,11 @@ the flag must be true for demo records unless the operator deliberately enables
 | Build | Make and `g++`/Apple Clang-compatible driver | CLI, runner, tests, benchmark and scenario binaries |
 | Data interchange | CSV and JSON | Inputs and versioned explanations |
 | API | Python, FastAPI, Uvicorn, Pydantic | Routes, validation, typed exports and frontend hosting |
-| Retrieval | Sentence Transformers, NumPy, optional FAISS CPU | Markdown embeddings and nearest-neighbor search |
+| Retrieval | Local feature hashing and NumPy by default; optional Sentence Transformers and FAISS CPU | Offline Markdown retrieval with optional semantic reindex |
 | Provider HTTP | HTTPX and optional Google Gemini `generateContent` | Mocked/local default or external answer generation |
 | Frontend | Vanilla HTML, CSS and JavaScript | Browser workflow, result dashboard and trace/scenario views |
 | Verification | C++ assertion executables, pytest, mocked HTTP | Matching/export, API/RAG/provider/integration checks |
-| Persistence | Local files and temporary directories | No database server; temporary web allocations and local vector index |
+| Persistence | SQLite, local files, and temporary directories | Accounts persist locally; web allocation uploads remain temporary |
 
 Python package versions are pinned in
 [`rag_service/requirements.txt`](../rag_service/requirements.txt). Phase 6 was
@@ -630,7 +651,9 @@ secrets in documentation.
 | `TOP_K_CHUNKS` | `4` | Maximum retrieved passages |
 | `MAX_HISTORY_TURNS` | `2` | Recent turns retained in memory/prompt |
 | `MIN_SIMILARITY` | `0.25` | Retriever relevance floor |
-| `SAE_ADMIN_TOKEN` | empty | 32+ character token to enable admin endpoints |
+| `SAE_AUTH_DB_PATH` | `./.data/accounts.sqlite3` | Local SQLite account store |
+| `SAE_JWT_SECRET_PATH` | `./.data/jwt_signing.key` | Private local JWT signing key path when `JWT_SECRET_KEY` is empty |
+| `JWT_SECRET_KEY` | generated and persisted when empty | Optional configured secret of at least 32 bytes |
 | `SAE_LIVE_GEMINI` | `0` | Must be explicitly enabled for fixed-prompt smoke script |
 | `SAE_ALLOW_REAL_DATA` | `0` | Must be enabled for authorized non-synthetic local browser runs |
 
@@ -663,8 +686,8 @@ secrets in documentation.
 - Qualification taxonomy, hard thresholds, location semantics, sector
   eligibility and past-participation effects remain unverified. Related
   optional rules are disabled by default.
-- No database, user login, candidate consent workflow, persistent chat
-  history, public multi-user security architecture or production deployment.
+- No trained model, self-service identity recovery, persistent chat history,
+  public multi-user security architecture or production deployment.
 - No live Gemini response was checked; no claim that Gemini is free or always
   available; Gemini never decides or changes allocations.
 - No maximum-weight/optimal assignment solver. Greedy and data-structure

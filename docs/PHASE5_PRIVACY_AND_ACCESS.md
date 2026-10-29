@@ -1,54 +1,60 @@
-# Phase 5: privacy and access boundary
+# Privacy and access boundary
 
-## Network boundary
+## Local access and request limits
 
-- The FastAPI app accepts direct connections only when the peer IP is loopback.
-- Admin reload and reindex endpoints are disabled unless `SAE_ADMIN_TOKEN` is
-  configured with at least 32 characters. Requests use the
-  `X-Admin-Token` header and a constant-time comparison.
-- Per-process rate limits are 20 chat requests/minute, 12 validation or
-  allocation requests/minute, 5 admin requests/minute, and 120/minute for
-  other paths. JSON bodies over 2,100,000 bytes are rejected.
-- In-memory chat state is capped at 1,000 candidate/session pairs, with a
-  maximum of `MAX_HISTORY_TURNS` retained turns for each pair.
-- Do not expose this prototype through a public or shared reverse proxy. A
-  proxy can make remote clients appear to be a loopback peer; production use
-  needs authenticated users, trusted proxy handling, durable rate limits, and
-  an explicit deployment security review.
+- The FastAPI service accepts direct connections from loopback addresses only.
+- CORS permits local `localhost` and `127.0.0.1` origins. Do not expose the
+  service through a public or shared reverse proxy.
+- Request bodies larger than 2,100,000 bytes are rejected, including chunked
+  bodies.
+- In-process rate limits are 20 chat requests/minute, 12 CSV validation or
+  allocation requests/minute, 5 admin requests/minute, and 120 other
+  requests/minute. These are prototype safeguards, not distributed controls.
+- Browser allocation is restricted to synthetic data unless an authorized
+  local operator explicitly enables `SAE_ALLOW_REAL_DATA=1`.
 
-## Candidate data and Gemini
+## Authentication and account data
 
-- Candidate name and identifier are omitted from the model prompt. The prompt
-  still contains profile skills/sector, allocation status and scores, ranked
-  company choices, the question, and up to two previous turns by default.
-- Chat history stays in process memory, is bounded by `MAX_HISTORY_TURNS`, and
-  is cleared on data reload or a new browser allocation. It is not persisted
-  to disk. Request bodies and prompts are not logged.
-- In mock mode, chat is local. In Gemini mode, minimized prompt contents are
-  sent to Google's Gemini API. The CLI asks the operator before its first chat
-  call; direct API users must read `/health` and obtain their own authorization
-  before enabling Gemini for real records.
-- The live Gemini smoke script only sends a fixed test prompt and requires
-  `SAE_LIVE_GEMINI=1`. It does not include candidate data and was not run as
-  part of implementation.
-- CSV exports and browser datasets can still contain personal data. Use
-  synthetic records for demonstrations. Allocation of non-synthetic browser
-  uploads is disabled by default; the operator must explicitly set
-  `SAE_ALLOW_REAL_DATA=1` for an authorized local evaluation. Uploaded CSVs
-  and exports are held in a temporary directory while that run is active and
-  removed on the next run, an admin reload, or process shutdown. Do not treat
-  a candidate ID as authentication.
+- Candidate and allocator sign-in use one-hour HS256 JWTs. Candidate routes
+  map the token to a server-side candidate ID, so the browser cannot choose a
+  different candidate record. Allocator routes require the separate `admin`
+  role.
+- Accounts and salted PBKDF2 password hashes are stored in the local SQLite
+  database at `rag_service/.data/accounts.sqlite3` by default. The signing key
+  is generated with private file permissions and stored at
+  `rag_service/.data/jwt_signing.key`. Both paths are configurable, and the
+  `.data` directory is ignored by Git.
+- Demo candidate accounts and an allocator account are seeded once for the
+  checked-in sample data. Their initial credentials are listed in
+  `rag_service/README.md`; change them before a presentation on a shared
+  machine. Allocators can add candidate accounts, reset passwords, and disable
+  accounts. Candidates and allocators can change their own passwords.
+- Password changes, resets, and deactivation increment an account token
+  version, invalidating earlier JWTs. Accounts are local demo identities;
+  there is no public registration, email verification, self-service recovery,
+  or production identity management.
 
-## Source and answer boundary
+## Candidate data and assistant processing
 
-- `kb/scheme_faq.md` contains source titles, dates, direct links, and a check
-  date for the verified official facts included in it.
-- The FAQ distinguishes the April 2026 MCA update from historical 2024 pilot
-  notes. It directs users to the live scheme portal for current round details.
-- The assistant is advisory, cannot alter allocations, and receives only one
-  selected candidate's result facts. If its output contains a numeric token
-  absent from those facts and retrieved passages, the API replaces the answer
-  with a verification message.
-- Sources are returned as knowledge labels and titles. This grounding reduces
-  unsupported answers but does not guarantee semantic correctness; check the
-  official source for decisions and current scheme terms.
+- Candidate result and chat routes only return the signed-in candidate's data;
+  an allocator role is required to inspect other candidate records.
+- Chat history remains in process memory, is capped at 1,000 candidate/session
+  pairs, and retains at most `MAX_HISTORY_TURNS` (2 by default). It clears
+  when the active allocation reloads and is not written to disk.
+- The offline feature-hashing index is built locally at startup. Optional
+  Sentence Transformer reindexing uses the configured model and may require a
+  cached model or network access.
+- In mock mode, chat runs locally. Gemini mode sends minimized allocation and
+  skill facts, the question, retrieved passages, and a limited chat history to
+  Google's API. The candidate page asks for consent before the first external
+  chat request in that browser session. Obtain authorization before processing
+  real records with Gemini.
+- The assistant is advisory, cannot change allocations, and filters unverified
+  numeric claims. Retrieved sources improve traceability but do not guarantee
+  correctness; check the official source for current scheme decisions.
+- Demo uploads and their generated exports live in temporary directories and
+  are removed after a later run, an admin reload, or service shutdown. They do
+  not replace the checked-in exports.
+
+`rag_service/.env` may contain a Gemini key or configured JWT secret and is
+ignored by Git. Never include secrets in reports or shared project material.

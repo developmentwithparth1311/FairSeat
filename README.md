@@ -14,9 +14,11 @@ allocator checks seat capacity, assignment consistency, and blocking pairs
 under the configured preference rules.
 
 The project also includes a local browser interface and a Python service. The
-service invokes the C++ engine and returns its results to the interface. An
-optional retrieval-augmented assistant can explain exported results and
-provide skill guidance. It does not participate in allocation.
+service invokes the C++ engine and returns its results to the interface. The
+candidate portal uses short-lived JWT bearer tokens for SQLite-backed,
+fictional demo profiles. Candidates can review their own result and ask the
+retrieval-augmented assistant for guidance; it does not participate in
+allocation. Allocator tools use a separate admin role.
 
 ## Architecture
 
@@ -28,9 +30,9 @@ flowchart LR
   API --> CORE
   JSON --> API
   API --> WEB[HTML, CSS and JavaScript interface]
-  JSON --> RAG[Optional retrieval-augmented assistant]
+  API --> RAG[Retrieval-augmented assistant]
   KB[Local Markdown knowledge base] --> RAG
-  RAG --> CHAT[Terminal client or chat API]
+  RAG --> CHAT[Candidate portal or terminal client]
 ```
 
 ## Matching policy
@@ -60,14 +62,16 @@ guarantee a maximum total score, fairness, or compliance with all scheme rules.
 - **Allocation:** C++17 and the standard library
 - **API:** Python, FastAPI, Uvicorn, and Pydantic
 - **Interface:** HTML, CSS, and vanilla JavaScript
-- **Assistant:** Sentence Transformers, NumPy, optional FAISS, and an optional
-  Gemini API client
-- **Data:** CSV inputs and JSON explanations; no database server is required
+- **Assistant:** Local feature-hashing retrieval by default, optional Sentence
+  Transformers/FAISS reindexing, and an optional Gemini API client
+- **Data:** CSV inputs, JSON explanations, and a local SQLite account database;
+  no database server is required
 - **Build and verification:** Make, `g++`, C++ checks, and pytest
 
-The assistant defaults to a deterministic local mock provider. Gemini can be
-configured in `rag_service/.env`; no live Gemini call has been verified. No
-machine-learning model is trained for allocation.
+The assistant defaults to a deterministic local mock provider and builds a
+local feature-hashing index without downloading a model. Gemini and a
+Sentence Transformer index are optional. No machine-learning model is trained
+for allocation.
 
 ## Build and run the C++ application
 
@@ -97,8 +101,11 @@ uvicorn app.main:app --host 127.0.0.1 --reload --no-access-log --port 8000
 
 Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The interface supports
 CSV validation and preview, allocation, result explanations, company
-capacity, allocation-trace replay, and synthetic policy scenarios. Browser
-allocations use temporary files and do not overwrite the saved exports.
+capacity, allocation-trace replay, synthetic policy scenarios, and a
+candidate portal with a result-aware chat. Browser allocations use temporary
+files and do not overwrite the saved exports. The demo accounts and shared
+password are documented in `rag_service/README.md`; this is a local prototype,
+not production authentication.
 
 ## Input formats
 
@@ -141,8 +148,9 @@ make phase3-report
 
 SAE is a local demonstration project. Its sample data and policy scenarios are
 synthetic. It does not implement a complete verified PMIS rulebook, affirmative
-action policy, candidate login or consent workflow, or production deployment
-security. The optional assistant is advisory and must not be used as an
+action policy, real-user identity management, self-service account recovery, or
+production deployment security. Candidate sign-in uses fictional demo
+profiles and allocator-managed local accounts only. The optional assistant is advisory and must not be used as an
 authoritative source for eligibility or scheme decisions.
 
 ## Documentation
