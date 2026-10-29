@@ -2,7 +2,7 @@
   "use strict";
 
   const $ = (selector) => document.querySelector(selector);
-  const state = { valid: false, result: null, selected: null, traceIndex: 0, scenarios: null, datasetName: "Synthetic sample data", synthetic: true, validationRevision: 0, authToken: null, adminToken: null, candidateProfile: null, candidateResult: null, chatSession: null, externalLLM: false, externalConsent: false };
+  const state = { valid: false, result: null, selected: null, traceIndex: 0, scenarios: null, datasetName: "Synthetic sample data", synthetic: true, validationRevision: 0, authToken: null, adminToken: null, candidateProfile: null, candidateResult: null, preferenceIds: [], savedPreferenceIds: [], chatSession: null, externalLLM: false, externalConsent: false, externalProviderName: "external provider", candidateDirty: false, profileVersion: null, candidatePoll: null, adminPoll: null, adminStateVersion: null, opportunitiesDirty: false };
   const keysOnly = new Set(["proposal", "competition", "accepted", "displaced", "rejected"]);
   const labels = { proposal: "Proposal", competition: "Seat competition", accepted: "Accepted", displaced: "Displaced", rejected: "Rejected", unmatched: "Unmatched", completion: "Complete" };
   let toastTimer;
@@ -199,9 +199,41 @@
     $("#scenario-rows").innerHTML = rows.map((r) => `<tr><td>${esc(human(r.scenario))}</td><td>${esc(r.cohort.replace("synthetic_group_", ""))}</td><td>${esc(r.eligible)}</td><td>${esc(r.allocated)}</td><td>${esc(r.unmatched)}</td><td>${fmt(r.average_score)}</td><td>${esc(r.changed_assignments)}</td><td>${esc(r.seats_filled)}</td></tr>`).join("");
   }
   function activateView(name) {
-    if (["workspace", "algorithm", "fairness"].includes(name) && !state.adminToken) name = name === "workspace" ? "workspace" : "candidate";
+    if (["workspace", "admin-candidates", "admin-opportunities", "algorithm", "fairness"].includes(name) && !state.adminToken) {
+      name = name === "workspace" ? "workspace" : "candidate";
+    }
+    const nestedAdminView = ["admin-candidates", "admin-opportunities"].includes(name);
     document.querySelectorAll(".tab").forEach((tab) => { const active = tab.dataset.view === name; tab.classList.toggle("active", active); if (active) tab.setAttribute("aria-current", "page"); else tab.removeAttribute("aria-current"); });
-    document.querySelectorAll(".view").forEach((view) => { const active = view.id === `${name}-view`; view.classList.toggle("active", active); view.hidden = !active; });
+    document.querySelectorAll(".view").forEach((view) => {
+      const active = view.id === `${name}-view` || (view.id === "workspace-view" && nestedAdminView);
+      view.classList.toggle("active", active); view.hidden = !active;
+    });
+    const adminOverview = $("#admin-overview-panel");
+    if (adminOverview) adminOverview.hidden = nestedAdminView;
+    const accountSettings = $("#admin-account-settings");
+    if (accountSettings) accountSettings.hidden = name !== "workspace";
+  }
+
+  function showRoleChoice() {
+    state.authToken = null; state.adminToken = null; state.candidateProfile = null; state.candidateResult = null;
+    sessionStorage.removeItem("sae.candidate.token"); sessionStorage.removeItem("sae.admin.token");
+    $(".tabs").hidden = true; $("#role-choice").hidden = false;
+    $("#session-signout").hidden = true;
+    document.querySelectorAll(".view").forEach((view) => { view.hidden = true; view.classList.remove("active"); });
+    $("#admin-login-panel").hidden = false; $("#allocator-workspace").hidden = true;
+    $("#candidate-login").hidden = false; $("#candidate-dashboard").hidden = true;
+  }
+
+  async function chooseRole(role) {
+    $("#role-choice").hidden = true;
+    $(".tabs").hidden = true;
+    if (role === "candidate") {
+      $("#candidate-login").hidden = false; $("#candidate-dashboard").hidden = true;
+      activateView("candidate"); await loadDemoProfiles();
+    } else {
+      $("#admin-login-panel").hidden = false; $("#allocator-workspace").hidden = true;
+      activateView("workspace");
+    }
   }
 
   function setLoginMessage(message, error = false) {
@@ -212,9 +244,9 @@
     state.candidateProfile = null; state.candidateResult = null; state.chatSession = null;
   }
   async function signOut() {
-    sessionStorage.removeItem("sae.candidate.token"); state.authToken = null;
+    clearInterval(state.candidatePoll); state.candidatePoll = null;
     $("#candidate-chat-input").value = ""; $("#chat-messages").innerHTML = '<div class="chat-bubble assistant">Ask about your result, score, or skill gaps. The assistant can explain the recorded outcome but cannot change it.</div>';
-    showCandidateLogin(); setLoginMessage("You have signed out.");
+    showCandidateLogin(); showRoleChoice();
   }
   async function loadDemoProfiles() {
     try {
@@ -229,17 +261,55 @@
   async function openCandidatePortal() {
     try {
       const me = await candidateRequest("/auth/me"); state.candidateProfile = me.profile;
-      const result = await candidateRequest("/me/result"); state.candidateResult = result;
+      const result = await candidateRequest("/me/profile"); state.candidateResult = result;
       state.chatSession = window.crypto?.randomUUID?.() || `sae-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       renderCandidatePortal();
+      state.candidateDirty = false; state.profileVersion = result.profile_version;
       $("#candidate-login").hidden = true; $("#candidate-dashboard").hidden = false;
+      $("#session-signout").hidden = false;
+      $("#role-choice").hidden = true; $(".tabs").hidden = true; activateView("candidate");
       const health = await request("/health").catch(() => null);
       state.externalLLM = Boolean(health?.external_llm_processing);
+      state.externalProviderName = health?.llm_provider === "gemini" ? "Google Gemini" : health?.llm_provider === "groq" ? "Groq" : "external provider";
       state.externalConsent = false; $("#chat-external-consent").checked = false;
       $("#chat-consent-row").hidden = !state.externalLLM;
+      $("#chat-consent-copy").textContent = `I understand this question and minimized result facts will be sent to ${state.externalProviderName}.`;
       const providerNotice = health?.privacy_notice || "Assistant provider status is unavailable.";
       const knowledgeNotice = health && !health.kb_chunks ? "The knowledge index is not built yet; answers will be limited to this allocation's recorded facts." : "The knowledge index is ready for source-backed answers.";
       $("#chat-provider-notice").textContent = `${providerNotice} ${knowledgeNotice}`;
+      clearInterval(state.candidatePoll);
+      state.candidatePoll = setInterval(async () => {
+        if (!state.authToken) return;
+        try {
+          const latest = await candidateRequest("/me/profile");
+          const versionChanged = latest.profile_version !== state.profileVersion;
+          const resultChanged = latest.run_id !== state.candidateResult?.run_id || latest.allocation_state?.version !== state.candidateResult?.allocation_state?.version;
+          if (versionChanged || resultChanged) {
+            const edited = state.candidateDirty ? {
+              cgpa: $("#profile-cgpa").value, sector: $("#profile-sector").value,
+              location: $("#profile-location").value, skills: $("#profile-skills").value,
+              qualifications: $("#profile-qualifications").value,
+              preferred_locations: $("#profile-locations").value, sector_interests: $("#profile-sectors").value,
+              preferenceIds: [...state.preferenceIds],
+            } : null;
+            state.candidateResult = latest;
+            if (!state.candidateDirty) state.profileVersion = latest.profile_version;
+            renderCandidatePortal();
+            if (edited) {
+              $("#profile-cgpa").value = edited.cgpa; $("#profile-sector").value = edited.sector;
+              $("#profile-location").value = edited.location; $("#profile-skills").value = edited.skills;
+              $("#profile-qualifications").value = edited.qualifications;
+              $("#profile-locations").value = edited.preferred_locations; $("#profile-sectors").value = edited.sector_interests;
+              state.preferenceIds = edited.preferenceIds; state.candidateDirty = true;
+              renderPreferenceEditor(latest.all_opportunities || []);
+              if (versionChanged) {
+                $("#profile-save-message").textContent = "Your profile changed in another session. Reload the page before saving these edits.";
+                $("#profile-save-message").classList.add("error");
+              }
+            }
+          }
+        } catch (error) { if (/sign in|expired/i.test(error.message)) await signOut(); }
+      }, 4000);
     } catch (error) {
       if (/sign in|expired/i.test(error.message)) {
         sessionStorage.removeItem("sae.candidate.token"); state.authToken = null;
@@ -254,9 +324,13 @@
     try {
       const me = await adminRequest("/auth/me");
       if (me.profile.role !== "admin") throw new Error("Allocator sign-in is required.");
+      $("#role-choice").hidden = true; $(".tabs").hidden = false; activateView("workspace");
+      $("#session-signout").hidden = false;
       $("#admin-login-panel").hidden = true; $("#allocator-workspace").hidden = false;
       document.querySelectorAll("[data-admin-only]").forEach((tab) => { tab.hidden = false; });
-      await loadAdminAccounts(); await loadSample();
+      await loadAdminAccounts(); await loadAdminWorkspace(); await loadAdminCandidates(); await loadAdminOpportunities();
+      clearInterval(state.adminPoll);
+      state.adminPoll = setInterval(() => loadAdminWorkspace().catch(() => {}), 4000);
     } catch (error) {
       sessionStorage.removeItem("sae.admin.token"); state.adminToken = null;
       $("#admin-login-panel").hidden = false; $("#allocator-workspace").hidden = true;
@@ -280,14 +354,57 @@
       } catch (error) { setAdminAccountMessage(error.message, true); }
     }));
   }
+  async function loadAdminWorkspace() {
+    const [dashboard, current] = await Promise.all([
+      adminRequest("/admin/dashboard"), adminRequest("/admin/allocations/current"),
+    ]);
+    const allocationState = dashboard.allocation_state;
+    const priorVersion = state.adminStateVersion;
+    state.adminStateVersion = allocationState.version;
+    const currentRun = dashboard.current_run;
+    $("#admin-allocation-status").textContent = currentRun
+      ? `Published ${new Date(currentRun.created_at + "Z").toLocaleString()}`
+      : ({ reset: "Reset · awaiting next run", profile_updated: "Profile changed · run again",
+           opportunities_updated: "Opportunity details changed · run again" }[allocationState.status] || "Not allocated yet");
+    const s = dashboard.summary || {};
+    const metrics = [["Candidates", dashboard.candidate_count, "saved profiles"], ["Opportunities", dashboard.opportunity_count, "open to allocation"], ["Assigned", currentRun ? s.assigned : 0, currentRun ? "latest published run" : "no current run"], ["Unmatched", currentRun ? s.unmatched : 0, "latest published run"], ["Seats filled", currentRun ? `${s.seats_filled} / ${s.total_seats}` : "0", "current allocation"]];
+    $("#admin-summary-cards").innerHTML = metrics.map(([label, value, note]) => `<div class="metric-card"><span>${esc(label)}</span><strong>${esc(value ?? 0)}</strong><small>${esc(note)}</small></div>`).join("");
+    $("#allocation-history-rows").innerHTML = dashboard.history.length ? dashboard.history.map((run) => `<tr><td><code>${esc(run.run_id.slice(0, 8))}</code></td><td>${esc(new Date(run.created_at + "Z").toLocaleString())}</td><td>${esc(run.created_by)}</td><td>${esc(run.summary.assigned)}</td><td>${esc(run.summary.unmatched)}</td></tr>`).join("") : '<tr><td colspan="5" class="muted">No allocation runs yet.</td></tr>';
+    if (current.current_run) {
+      if (state.result?.run_id !== current.run_id) renderResults(current);
+      if (state.result && !state.result.run_id) state.result.run_id = current.run_id;
+      } else {
+      state.result = null; state.selected = null; $("#results-section").hidden = true;
+    }
+    $("#admin-reset-allocation").disabled = !currentRun;
+    if (priorVersion != null && priorVersion !== allocationState.version) {
+      await loadAdminCandidates();
+      if (!state.opportunitiesDirty) await loadAdminOpportunities();
+      else {
+        $("#opportunity-save-message").textContent = "Shared records changed while you were editing. Reload before saving.";
+        $("#opportunity-save-message").classList.add("error");
+      }
+    }
+  }
+  async function loadAdminCandidates() {
+    const data = await adminRequest("/admin/candidates");
+    $("#admin-candidates-rows").innerHTML = data.candidates.map((c) => {
+      const placement = c.allocation?.company_id ? `Assigned · ${c.allocation_company || c.allocation.company_id}` : c.allocation_status === "current" ? "Unmatched" : "Not allocated";
+      return `<tr><td><strong>${esc(c.name)}</strong><small>${esc(c.candidate_id)} · ${esc(c.email || "no account")}</small></td><td>${esc(c.sector)}</td><td>${esc(c.location)}</td><td>${c.preferences.length ? c.preferences.map((item) => esc(item.name)).join(" → ") : "No eligible opportunities"}</td><td>${esc(placement)}</td></tr>`;
+    }).join("") || '<tr><td colspan="5" class="muted">No candidate profiles.</td></tr>';
+  }
+  let opportunityVersion = null;
+  async function loadAdminOpportunities() {
+    const data = await adminRequest("/admin/opportunities"); opportunityVersion = data.version; state.adminOpportunities = data.opportunities; state.opportunitiesDirty = false;
+    $("#admin-opportunity-rows").innerHTML = data.opportunities.map((o) => `<tr data-opportunity-id="${esc(o.id)}"><td><strong>${esc(o.name)}</strong><small>${esc(o.id)}</small></td><td><input data-field="sector" value="${esc(o.sector)}" aria-label="${esc(o.name)} sector"></td><td><input data-field="location" value="${esc(o.location)}" aria-label="${esc(o.name)} location"></td><td><input data-field="seats" type="number" min="0" value="${esc(o.seats)}" aria-label="${esc(o.name)} seats"></td><td><input data-field="required_skills" value="${esc(o.required_skills.join(", "))}" aria-label="${esc(o.name)} required skills"></td><td><input data-field="required_qualifications" value="${esc(o.required_qualifications.join(", "))}" aria-label="${esc(o.name)} required qualifications"></td></tr>`).join("");
+  }
   function setAdminAccountMessage(message, error = false) {
     const el = $("#admin-account-message"); el.textContent = message; el.className = `validation-message${error ? " error" : ""}`;
   }
   async function adminSignOut() {
-    sessionStorage.removeItem("sae.admin.token"); state.adminToken = null;
-    $("#admin-login-panel").hidden = false; $("#allocator-workspace").hidden = true;
+    clearInterval(state.adminPoll); state.adminPoll = null;
     document.querySelectorAll("[data-admin-only]").forEach((tab) => { tab.hidden = true; });
-    activateView("workspace");
+    showRoleChoice();
     setAdminLoginMessage("Allocator signed out.");
   }
   async function changePassword(requestFn, currentId, nextId, messageId, storageKey, role) {
@@ -302,12 +419,49 @@
       $(currentId).value = ""; $(nextId).value = ""; message.textContent = "Password changed. Other active tokens for this account were revoked.";
     } catch (error) { message.textContent = error.message; message.classList.add("error"); }
   }
-  function renderCandidatePortal() {
-    const result = state.candidateResult, profile = result.profile, allocation = result.allocation;
-    const matched = allocation.status === "matched";
-    const company = result.assigned_company;
+  function splitList(text) { return [...new Set(String(text || "").split(/[;,]/).map((item) => item.trim()).filter(Boolean))]; }
+  function showCandidateProfile(profile) {
     $("#candidate-name").textContent = profile.name;
-    $("#candidate-subtitle").textContent = `${profile.email} · ${profile.sector} · ${profile.location}`;
+    $("#candidate-subtitle").textContent = `${state.candidateProfile?.email || ""} · ${profile.sector} · ${profile.location}`;
+    $("#profile-name").value = profile.name;
+    $("#profile-cgpa").value = profile.cgpa;
+    $("#profile-sector").value = profile.sector;
+    $("#profile-location").value = profile.location;
+    $("#profile-skills").value = profile.skills.join(", ");
+    $("#profile-qualifications").value = profile.qualifications.join(", ");
+    $("#profile-locations").value = profile.preferred_locations.join(", ");
+    $("#profile-sectors").value = profile.sector_interests.join(", ");
+    const profileMessage = $("#profile-save-message"); profileMessage.className = "validation-message";
+    profileMessage.textContent = `Profile version ${profile.profile_version} · last saved ${profile.updated_at}`;
+    state.preferenceIds = (profile.preferences || []).map((item) => item.id);
+    state.savedPreferenceIds = [...state.preferenceIds];
+    $("#preferences-mode").textContent = profile.preferences_are_automatic
+      ? "Showing the current automatic score ranking. Save your edited order to use it as your preference list."
+      : "Your saved preference order will be used for the next allocation.";
+    renderPreferenceEditor(profile.all_opportunities || []);
+    const status = $("#candidate-allocation-status");
+    status.innerHTML = `<p class="eyebrow">ALLOCATION STATUS</p><h3>${profile.allocation_status === "allocated" ? "Result available" : "Not allocated yet"}</h3><p>${esc(profile.allocation_message || "Your profile is saved and ready for the next allocation.")}</p>`;
+    $("#candidate-allocation-details").hidden = profile.allocation_status !== "allocated";
+  }
+  function renderPreferenceEditor(opportunities = state.candidateResult?.all_opportunities || []) {
+    const byId = new Map(opportunities.map((item) => [item.id, item]));
+    $("#candidate-preferences").innerHTML = state.preferenceIds.length ? state.preferenceIds.map((id, index) => {
+      const item = byId.get(id);
+      return `<li class="preference-item"><div><strong>${index + 1}. ${esc(item?.name || id)}</strong><span>${esc(item?.sector || "")} · ${esc(item?.location || "")}</span></div><div class="preference-actions"><button type="button" data-pref-action="up" data-pref-index="${index}" aria-label="Move ${esc(item?.name || id)} up" ${index === 0 ? "disabled" : ""}>↑</button><button type="button" data-pref-action="down" data-pref-index="${index}" aria-label="Move ${esc(item?.name || id)} down" ${index === state.preferenceIds.length - 1 ? "disabled" : ""}>↓</button><button type="button" data-pref-action="remove" data-pref-index="${index}" aria-label="Remove ${esc(item?.name || id)}">Remove</button></div></li>`;
+    }).join("") : '<li class="muted small">No opportunities in your preference list yet. Add one below.</li>';
+    const select = $("#preference-opportunity"), available = opportunities.filter((item) => !state.preferenceIds.includes(item.id));
+    select.innerHTML = available.length ? available.map((item) => `<option value="${esc(item.id)}">${esc(item.name)} · ${esc(item.sector)}</option>`).join("") : '<option value="">All opportunities are already listed</option>';
+    select.disabled = available.length === 0;
+    const dirty = state.preferenceIds.join("|") !== state.savedPreferenceIds.join("|");
+    $("#save-preferences").disabled = !dirty;
+    $("#preferences-save-message").className = "validation-message";
+    if (dirty) $("#preferences-save-message").textContent = "Unsaved preference changes.";
+  }
+  function renderCandidatePortal() {
+    const result = state.candidateResult, profile = result;
+    showCandidateProfile(profile);
+    if (profile.allocation_status !== "allocated") return;
+    const allocation = profile.allocation, matched = allocation.status === "matched", company = profile.assigned_company;
     $("#candidate-policy").textContent = `${result.policy_version} · ${result.dataset_name}${result.synthetic ? " · synthetic" : ""}`;
     const outcome = matched ? `Matched${company ? ` · ${company.name}` : ""}` : "Unmatched in this run";
     const cards = [
@@ -317,7 +471,7 @@
       ["Scoring policy", result.policy_version],
     ];
     $("#candidate-outcome").innerHTML = cards.map(([label, value]) => `<div class="candidate-outcome-card"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join("");
-    const summary = result.explanation;
+    const summary = result.explanation || {};
     const choices = summary.choices || [];
     const overall = matched
       ? `You were placed${company ? ` at ${company.name}` : ""}${allocation.preference_rank ? ` at preference rank ${allocation.preference_rank}` : ""}. This is the outcome recorded for this run.`
@@ -352,7 +506,7 @@
   async function sendCandidateMessage(message) {
     if (state.externalLLM && !state.externalConsent) {
       if (!$("#chat-external-consent").checked) {
-        $("#chat-provider-notice").textContent = "Review the Gemini notice and check the consent box before sending. No question has been sent.";
+        $("#chat-provider-notice").textContent = `Review the ${state.externalProviderName} notice and check the consent box before sending. No question has been sent.`;
         $("#chat-external-consent").focus(); return;
       }
       state.externalConsent = true;
@@ -374,7 +528,80 @@
 
   document.addEventListener("DOMContentLoaded", async () => {
     document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => activateView(tab.dataset.view)));
+    $("#choose-candidate").addEventListener("click", () => chooseRole("candidate"));
+    $("#choose-admin").addEventListener("click", () => chooseRole("admin"));
+    $("#candidate-profile-form").addEventListener("submit", async (event) => {
+      event.preventDefault(); const button = $("#save-profile"); button.disabled = true;
+      $("#profile-save-message").textContent = "Saving your profile…";
+      const values = {
+        expected_profile_version: state.profileVersion,
+        skills: splitList($("#profile-skills").value), cgpa: Number($("#profile-cgpa").value),
+        sector: $("#profile-sector").value.trim(), location: $("#profile-location").value.trim(),
+        qualifications: splitList($("#profile-qualifications").value),
+        preferred_locations: splitList($("#profile-locations").value),
+        sector_interests: splitList($("#profile-sectors").value),
+      };
+      try {
+        state.candidateResult = await candidateRequest("/me/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) });
+        state.profileVersion = state.candidateResult.profile_version; state.candidateDirty = false;
+        renderCandidatePortal(); $("#profile-save-message").textContent = "Saved. Your updated profile will be used for the next allocation.";
+      } catch (error) { $("#profile-save-message").textContent = error.message; $("#profile-save-message").classList.add("error"); }
+      finally { button.disabled = false; }
+    });
+    $("#add-preference").addEventListener("click", () => {
+      const id = $("#preference-opportunity").value;
+      if (id && !state.preferenceIds.includes(id)) state.preferenceIds.push(id);
+      renderPreferenceEditor();
+    });
+    $("#candidate-preferences").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-pref-action]"); if (!button) return;
+      const index = Number(button.dataset.prefIndex), action = button.dataset.prefAction;
+      if (action === "remove") state.preferenceIds.splice(index, 1);
+      if (action === "up" && index > 0) [state.preferenceIds[index - 1], state.preferenceIds[index]] = [state.preferenceIds[index], state.preferenceIds[index - 1]];
+      if (action === "down" && index < state.preferenceIds.length - 1) [state.preferenceIds[index + 1], state.preferenceIds[index]] = [state.preferenceIds[index], state.preferenceIds[index + 1]];
+      renderPreferenceEditor();
+    });
+    $("#save-preferences").addEventListener("click", async () => {
+      const button = $("#save-preferences"); button.disabled = true;
+      $("#preferences-save-message").textContent = "Saving your preference order…";
+      try {
+        state.candidateResult = await candidateRequest("/me/preferences", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ opportunity_ids: state.preferenceIds, expected_profile_version: state.profileVersion }) });
+        state.profileVersion = state.candidateResult.profile_version; state.candidateDirty = false;
+        renderCandidatePortal(); $("#preferences-save-message").textContent = "Saved. Your updated preferences will be used for the next allocation.";
+      } catch (error) { $("#preferences-save-message").textContent = error.message; $("#preferences-save-message").classList.add("error"); button.disabled = false; }
+    });
+    $("#candidate-profile-form").addEventListener("input", () => { state.candidateDirty = true; });
+    $("#candidate-preferences").addEventListener("click", () => { state.candidateDirty = true; });
+    $("#add-preference").addEventListener("click", () => { state.candidateDirty = true; });
     $("#load-sample").addEventListener("click", () => loadSample().catch((error) => showToast(error.message, true)));
+    $("#admin-run-allocation").addEventListener("click", async () => {
+      const button = $("#admin-run-allocation"); button.disabled = true; $("#admin-action-message").textContent = "Running allocation from saved profiles and preferences…";
+      try { const data = await adminRequest("/admin/allocations/run", { method: "POST" }); data.run_id = data.run_id; renderResults(data); await loadAdminWorkspace(); $("#admin-action-message").textContent = "Allocation published to candidate accounts."; showToast("Allocation completed and published."); }
+      catch (error) { $("#admin-action-message").textContent = error.message; $("#admin-action-message").classList.add("error"); }
+      finally { button.disabled = false; }
+    });
+    $("#admin-reset-allocation").addEventListener("click", async () => {
+      const button = $("#admin-reset-allocation"); button.disabled = true; $("#admin-action-message").textContent = "Resetting current allocation…";
+      try { await adminRequest("/admin/allocations/reset", { method: "POST" }); state.result = null; $("#results-section").hidden = true; await loadAdminWorkspace(); await loadAdminCandidates(); $("#admin-action-message").textContent = "Current allocation cleared. Candidate profiles and run history are retained."; }
+      catch (error) { $("#admin-action-message").textContent = error.message; $("#admin-action-message").classList.add("error"); }
+    });
+    $("#admin-refresh").addEventListener("click", () => loadAdminWorkspace().catch((error) => showToast(error.message, true)));
+    $("#refresh-candidates").addEventListener("click", () => loadAdminCandidates().catch((error) => showToast(error.message, true)));
+    $("#refresh-opportunities").addEventListener("click", () => loadAdminOpportunities().catch((error) => showToast(error.message, true)));
+    $("#save-opportunities").addEventListener("click", async () => {
+      const rows = [...$("#admin-opportunity-rows").querySelectorAll("tr[data-opportunity-id]")];
+      const opportunities = rows.map((row) => {
+        const original = state.adminOpportunities?.find((o) => o.id === row.dataset.opportunityId);
+        return { ...original, id: row.dataset.opportunityId,
+          sector: row.querySelector('[data-field="sector"]').value.trim(), location: row.querySelector('[data-field="location"]').value.trim(),
+          seats: Number(row.querySelector('[data-field="seats"]').value),
+          required_skills: splitList(row.querySelector('[data-field="required_skills"]').value),
+          required_qualifications: splitList(row.querySelector('[data-field="required_qualifications"]').value) };
+      });
+      try { await adminRequest("/admin/opportunities", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ opportunities, expected_version: opportunityVersion }) }); state.opportunitiesDirty = false; await loadAdminOpportunities(); await loadAdminWorkspace(); $("#opportunity-save-message").textContent = "Saved. The previous allocation was marked stale; run again to publish updated results."; }
+      catch (error) { $("#opportunity-save-message").textContent = error.message; $("#opportunity-save-message").classList.add("error"); }
+    });
+    $("#admin-opportunity-rows").addEventListener("input", () => { state.opportunitiesDirty = true; });
     $("#validate-button").addEventListener("click", validateData);
     $("#run-button").addEventListener("click", async () => {
       if (!state.valid) return;
@@ -413,7 +640,6 @@
     $("#trace-filter").addEventListener("change", () => { state.traceIndex = 0; renderTrace(); });
     $("#jump-displacement").addEventListener("click", () => { const next = visibleTraceIndexes().findIndex(({ event }, index) => index > state.traceIndex && event.type === "displaced"); if (next >= 0) setTraceIndex(next); });
     $("#load-scenarios").addEventListener("click", loadScenarios);
-    await loadDemoProfiles();
     $("#candidate-login-form").addEventListener("submit", async (event) => {
       event.preventDefault(); const button = $("#login-button"); button.disabled = true; setLoginMessage("Signing in…");
       try {
@@ -421,18 +647,20 @@
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: $("#login-email").value, password: $("#login-password").value, role: "candidate" }),
         });
+        sessionStorage.removeItem("sae.admin.token"); state.adminToken = null;
         state.authToken = data.access_token; sessionStorage.setItem("sae.candidate.token", state.authToken);
         $("#login-password").value = ""; await openCandidatePortal();
       } catch (error) { setLoginMessage(error.message, true); }
       finally { button.disabled = false; }
     });
     $("#candidate-logout").addEventListener("click", signOut);
+    $("#session-signout").addEventListener("click", () => state.adminToken ? adminSignOut() : signOut());
     $("#candidate-chat-form").addEventListener("submit", async (event) => {
       event.preventDefault(); const input = $("#candidate-chat-input"), message = input.value.trim();
       if (!message) return; input.value = ""; await sendCandidateMessage(message);
     });
     $("#chat-external-consent").addEventListener("change", (event) => {
-      if (event.target.checked) $("#chat-provider-notice").textContent = "Consent recorded for this browser session. Your next question will be sent to Gemini.";
+      if (event.target.checked) $("#chat-provider-notice").textContent = `Consent recorded for this browser session. Your next question will be sent to ${state.externalProviderName}.`;
     });
     $("#admin-login-form").addEventListener("submit", async (event) => {
       event.preventDefault(); const button = $("#admin-login-button"); button.disabled = true; setAdminLoginMessage("Signing in…");
@@ -441,12 +669,14 @@
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: $("#admin-login-email").value, password: $("#admin-login-password").value, role: "admin" }),
         });
+        sessionStorage.removeItem("sae.candidate.token"); state.authToken = null;
         state.adminToken = data.access_token; sessionStorage.setItem("sae.admin.token", state.adminToken);
         $("#admin-login-password").value = ""; await openAllocatorWorkbench();
       } catch (error) { setAdminLoginMessage(error.message, true); }
       finally { button.disabled = false; }
     });
     $("#admin-logout").addEventListener("click", adminSignOut);
+    $("#admin-global-signout").addEventListener("click", adminSignOut);
     $("#refresh-accounts").addEventListener("click", () => loadAdminAccounts().then(() => setAdminAccountMessage("Account list refreshed.")).catch((error) => setAdminAccountMessage(error.message, true)));
     $("#admin-create-account-form").addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -477,12 +707,14 @@
       event.preventDefault(); await changePassword(candidateRequest, "#candidate-current-password", "#candidate-new-password", "#candidate-password-message", "sae.candidate.token", "candidate");
     });
     state.authToken = sessionStorage.getItem("sae.candidate.token");
-    if (state.authToken) await openCandidatePortal();
     state.adminToken = sessionStorage.getItem("sae.admin.token");
-    if (state.adminToken) await openAllocatorWorkbench();
-    setConnection(true, "Local service");
-    if (!state.adminToken) {
-      try { await loadSample(); } catch (error) { setConnection(false, "Service unavailable"); $("#validation-message").textContent = `Could not load sample data: ${error.message}`; }
+    if (state.authToken) {
+      sessionStorage.removeItem("sae.admin.token"); state.adminToken = null; await openCandidatePortal();
+    } else if (state.adminToken) {
+      await openAllocatorWorkbench();
+    } else {
+      showRoleChoice();
     }
+    setConnection(true, "Local service");
   });
 })();

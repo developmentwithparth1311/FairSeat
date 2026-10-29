@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#183b32" />
     <meta name="description" content="A local demonstration of candidate-to-opportunity allocation with an inspectable matching process." />
     <title>SAE — Allocation workspace</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=signout-fix" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -18,6 +18,7 @@
       <div class="header-meta">
         <span id="connection-status" class="status-pill status-pending">Connecting</span>
         <span class="demo-pill">Local demo</span>
+        <button id="session-signout" class="button button-header-signout" type="button" hidden>Sign out</button>
       </div>
     </header>
 
@@ -25,20 +26,31 @@
       <section class="hero">
         <div>
           <p class="eyebrow">STABLE ALLOCATION ENGINE</p>
-          <h1>Make each allocation easy to inspect.</h1>
-          <p class="hero-copy">Validate candidate and opportunity data, run the matching engine, and follow each proposal through to its final result.</p>
+          <h1>One allocation workspace, two clear roles.</h1>
+          <p class="hero-copy">Candidates manage their profile and preferences. Admins manage the allocation process.</p>
         </div>
         <div class="hero-note"><span aria-hidden="true">ⓘ</span><span>Demo data is synthetic. Policy rules are prototype settings, not official scheme decisions.</span></div>
       </section>
 
-      <nav class="tabs" aria-label="Project views">
-        <button class="tab active" data-view="workspace" aria-current="page">Data & results</button>
-        <button class="tab" data-view="candidate">Candidate portal</button>
+      <section id="role-choice" class="role-choice card" aria-labelledby="role-choice-heading">
+        <p class="eyebrow">WELCOME</p><h2 id="role-choice-heading">Sign in to continue</h2>
+        <p class="muted">Choose the account type for your workspace.</p>
+        <div class="role-choice-actions">
+          <button id="choose-candidate" class="button button-primary" type="button">Candidate sign in</button>
+          <button id="choose-admin" class="button button-secondary" type="button">Admin sign in</button>
+        </div>
+      </section>
+
+      <nav class="tabs" aria-label="Admin workspace views" hidden>
+        <button class="tab active" data-view="workspace" aria-current="page">Overview</button>
+        <button class="tab" data-view="admin-candidates" data-admin-only hidden>Candidates</button>
+        <button class="tab" data-view="admin-opportunities" data-admin-only hidden>Opportunities</button>
         <button class="tab" data-view="algorithm" data-admin-only hidden>Allocation trace</button>
         <button class="tab" data-view="fairness" data-admin-only hidden>Policy scenarios</button>
+        <button id="admin-global-signout" class="button button-secondary admin-global-signout" data-admin-only hidden type="button">Sign out</button>
       </nav>
 
-      <section id="workspace-view" class="view active">
+      <section id="workspace-view" class="view" hidden>
         <div id="admin-login-panel" class="card auth-card admin-login-card">
           <div class="auth-intro"><p class="eyebrow">ALLOCATOR SIGN IN</p><h3>Open the allocation workbench</h3><p class="muted">Allocator tools are protected. Sign in with the local administrator account to validate data, run allocations, and manage candidate accounts.</p></div>
           <form id="admin-login-form" class="login-form">
@@ -50,7 +62,7 @@
           <p id="admin-login-message" class="validation-message" role="status" aria-live="polite"></p>
         </div>
         <div id="allocator-workspace" hidden>
-        <section class="card input-card" aria-labelledby="input-heading">
+        <section class="card input-card" aria-labelledby="input-heading" hidden>
           <div class="section-heading">
             <div><p class="eyebrow">INPUT</p><h2 id="input-heading">Candidate and opportunity data</h2></div>
             <span id="dataset-badge" class="dataset-badge">No dataset loaded</span>
@@ -78,28 +90,36 @@
           </div>
         </section>
 
-        <section id="results-section" class="results-section" hidden aria-labelledby="results-heading">
+        <section id="admin-overview-panel" class="card admin-overview-card" aria-labelledby="admin-overview-heading">
+          <div class="section-heading"><div><p class="eyebrow">ADMIN WORKSPACE</p><h2 id="admin-overview-heading">Allocation control</h2></div><span id="admin-allocation-status" class="dataset-badge">Loading current state…</span></div>
+          <p class="muted">Candidate profiles and ranked preferences are saved in the shared database. Run publishes a new result to every candidate account; reset clears the current result while keeping the run history.</p>
+          <div id="admin-summary-cards" class="metric-grid"></div>
+          <div class="validation-row"><button id="admin-run-allocation" class="button button-primary" type="button">Run allocation <span aria-hidden="true">→</span></button><button id="admin-reset-allocation" class="button button-secondary" type="button">Reset current allocation</button><button id="admin-refresh" class="button button-secondary" type="button">Refresh</button><span id="admin-action-message" class="validation-message" role="status" aria-live="polite"></span></div>
+          <div id="results-section" class="results-section" hidden aria-labelledby="results-heading">
           <div class="section-heading result-heading">
-            <div><p class="eyebrow">RESULTS</p><h2 id="results-heading">Allocation overview</h2></div>
+            <div><p class="eyebrow">LATEST PUBLISHED RUN</p><h2 id="results-heading">Allocation results</h2></div>
             <div class="run-meta"><span id="policy-label"></span><span id="dataset-label"></span></div>
           </div>
           <div id="metric-cards" class="metric-grid"></div>
           <div class="results-grid">
             <section class="card table-card" aria-labelledby="candidate-table-heading">
               <div class="card-heading"><div><h3 id="candidate-table-heading">Candidate outcomes</h3><p class="muted small">Select a row to inspect its result.</p></div></div>
-              <div class="filters">
-                <label class="search-box"><span class="visually-hidden">Search candidates</span><input id="candidate-search" type="search" placeholder="Search by name or ID" /></label>
-                <select id="sector-filter" aria-label="Filter by sector"><option value="">All sectors</option></select>
-                <select id="outcome-filter" aria-label="Filter by outcome"><option value="">All outcomes</option><option value="matched">Matched</option><option value="unmatched">Unmatched</option></select>
-              </div>
-              <div class="table-wrap"><table><thead><tr><th scope="col">Candidate</th><th scope="col">Sector</th><th scope="col">Location</th><th scope="col">Outcome</th><th scope="col">Score</th></tr></thead><tbody id="candidate-rows"></tbody></table></div>
+              <div class="filters"><label class="search-box"><span class="visually-hidden">Search candidates</span><input id="candidate-search" type="search" placeholder="Search by name or ID" /></label><select id="sector-filter" aria-label="Filter by sector"><option value="">All sectors</option></select><select id="outcome-filter" aria-label="Filter by outcome"><option value="">All outcomes</option><option value="matched">Matched</option><option value="unmatched">Unmatched</option></select></div>
+              <div class="table-wrap"><table><thead><tr><th>Candidate</th><th>Sector</th><th>Location</th><th>Outcome</th><th>Score</th></tr></thead><tbody id="candidate-rows"></tbody></table></div>
             </section>
-            <aside id="candidate-detail" class="card detail-card" aria-live="polite"><div class="empty-state"><span class="empty-icon" aria-hidden="true">↗</span><h3>Select a candidate</h3><p>See their assignment, ranked options, fit breakdown, and reason codes.</p></div></aside>
+            <aside id="candidate-detail" class="card detail-card" aria-live="polite"><div class="empty-state"><h3>Select a candidate</h3><p>See their assignment, ranked options, fit breakdown, and reason codes.</p></div></aside>
           </div>
-          <section class="card companies-card" aria-labelledby="companies-heading"><div class="card-heading"><div><h3 id="companies-heading">Opportunity capacity</h3><p class="muted small">Filled seats and remaining capacity after this run.</p></div></div><div id="company-cards" class="company-grid"></div></section>
+          <section class="card companies-card"><div class="card-heading"><div><h3>Opportunity capacity</h3><p class="muted small">Filled seats and remaining capacity after this run.</p></div></div><div id="company-cards" class="company-grid"></div></section>
+          </div>
+          <section class="card companies-card"><div class="card-heading"><div><h3>Previous runs</h3><p class="muted small">Recent published allocations retained for audit and comparison.</p></div></div><div class="table-wrap"><table><thead><tr><th>Run</th><th>Published</th><th>Administrator</th><th>Assigned</th><th>Unmatched</th></tr></thead><tbody id="allocation-history-rows"></tbody></table></div></section>
         </section>
-        <section class="card admin-management-card">
-          <div class="card-heading"><div><p class="eyebrow">ALLOCATOR TOOLS</p><h3>Candidate accounts</h3><p class="muted small">Create a profile for a candidate in the current allocation, reset its password, or deactivate it.</p></div><button id="refresh-accounts" class="button button-secondary" type="button">Refresh list</button></div>
+
+        <section id="admin-candidates-view" class="view" hidden><div class="section-heading"><div><p class="eyebrow">CANDIDATE RECORDS</p><h2>Candidate profiles and status</h2></div><button id="refresh-candidates" class="button button-secondary" type="button">Refresh list</button></div><section class="card table-card"><div class="table-wrap"><table><thead><tr><th>Candidate</th><th>Sector</th><th>Location</th><th>Preferences</th><th>Allocation</th></tr></thead><tbody id="admin-candidates-rows"></tbody></table></div></section></section>
+
+        <section id="admin-opportunities-view" class="view" hidden><div class="section-heading"><div><p class="eyebrow">OPPORTUNITY RECORDS</p><h2>Seats and requirements</h2></div><button id="refresh-opportunities" class="button button-secondary" type="button">Refresh list</button></div><p class="muted">Edit capacity or requirements. These saved records are used the next time the allocator runs.</p><section class="card table-card"><div class="table-wrap"><table><thead><tr><th>Opportunity</th><th>Sector</th><th>Location</th><th>Seats</th><th>Required skills</th><th>Qualifications</th></tr></thead><tbody id="admin-opportunity-rows"></tbody></table></div><div class="validation-row"><button id="save-opportunities" class="button button-primary" type="button">Save opportunities</button><span id="opportunity-save-message" class="validation-message" role="status" aria-live="polite"></span></div></section></section>
+
+        <details id="admin-account-settings" class="card admin-management-card" hidden><summary>Account management and password settings</summary>
+          <div class="card-heading"><div><p class="eyebrow">ALLOCATOR TOOLS</p><h3>Candidate accounts</h3><p class="muted small">Create a login for a saved candidate profile, reset passwords, or deactivate accounts.</p></div><button id="refresh-accounts" class="button button-secondary" type="button">Refresh list</button></div>
           <div class="admin-account-grid">
             <form id="admin-create-account-form" class="account-form">
               <h4>Create account</h4>
@@ -125,14 +145,14 @@
             <button class="button button-secondary" type="submit">Change password</button>
             <button id="admin-logout" class="button button-secondary" type="button">Sign out of allocator</button>
           </form>
-        </section>
+        </details>
         </div>
       </section>
 
       <section id="candidate-view" class="view" hidden>
         <div class="section-heading"><div><p class="eyebrow">YOUR APPLICATION</p><h2>Candidate portal</h2></div><span class="dataset-badge">Fictional demo profiles</span></div>
         <div id="candidate-login" class="card auth-card">
-          <div class="auth-intro"><p class="eyebrow">SIGN IN</p><h3>See your allocation result</h3><p class="muted">Choose one of the pre-created demo profiles. Each profile can view its own result and ask the assistant about it.</p></div>
+          <div class="auth-intro"><p class="eyebrow">CANDIDATE SIGN IN</p><h3>Open your candidate page</h3><p class="muted">Review and update your profile and ranked opportunity preferences.</p></div>
           <div id="demo-profile-list" class="demo-profile-list" aria-label="Pre-created demo profiles"></div>
           <form id="candidate-login-form" class="login-form">
             <label>Email<input id="login-email" name="email" type="email" autocomplete="username" required /></label>
@@ -148,6 +168,28 @@
             <div><p class="eyebrow">SIGNED IN AS</p><h3 id="candidate-name"></h3><p id="candidate-subtitle" class="muted"></p></div>
             <button id="candidate-logout" class="button button-secondary" type="button">Sign out</button>
           </section>
+          <section id="candidate-allocation-status" class="card candidate-status" aria-live="polite"></section>
+          <section class="card profile-editor-card">
+            <div class="card-heading"><div><p class="eyebrow">YOUR PROFILE</p><h3>Candidate details</h3><p class="muted small">Changes are saved to your profile and used for the next allocation.</p></div></div>
+            <form id="candidate-profile-form" class="profile-editor-grid">
+              <label>Full name<input id="profile-name" readonly /></label>
+              <label>CGPA (0–10)<input id="profile-cgpa" type="number" min="0" max="10" step="0.01" required /></label>
+              <label>Sector<input id="profile-sector" maxlength="80" required /></label>
+              <label>Location<input id="profile-location" maxlength="120" required /></label>
+              <label class="wide-field">Skills <small>Separate items with commas or semicolons</small><textarea id="profile-skills" rows="3" maxlength="2000"></textarea></label>
+              <label class="wide-field">Qualifications <small>Separate items with commas or semicolons</small><textarea id="profile-qualifications" rows="2" maxlength="1200"></textarea></label>
+              <label>Preferred locations <small>Separate items with commas</small><input id="profile-locations" maxlength="1000" /></label>
+              <label>Sector interests <small>Separate items with commas</small><input id="profile-sectors" maxlength="1000" /></label>
+              <div class="profile-save-row"><p id="profile-save-message" class="validation-message" role="status" aria-live="polite"></p><button id="save-profile" class="button button-primary" type="submit">Save profile</button></div>
+            </form>
+          </section>
+          <section class="card preference-editor-card">
+            <div class="card-heading"><div><p class="eyebrow">YOUR CHOICES</p><h3>Opportunity preferences</h3><p class="muted small">Order opportunities from most preferred to least preferred.</p><p id="preferences-mode" class="muted small"></p></div></div>
+            <div class="preference-add-row"><label for="preference-opportunity">Add an opportunity</label><select id="preference-opportunity"></select><button id="add-preference" class="button button-secondary" type="button">Add</button></div>
+            <ol id="candidate-preferences" class="preference-list"></ol>
+            <div class="profile-save-row"><p id="preferences-save-message" class="validation-message" role="status" aria-live="polite"></p><button id="save-preferences" class="button button-primary" type="button">Save preferences</button></div>
+          </section>
+          <div id="candidate-allocation-details" hidden>
           <div class="callout candidate-disclaimer"><span aria-hidden="true">ⓘ</span><p>This is a prototype explanation of a synthetic allocation run. It is not an official eligibility or scheme decision.</p></div>
           <div id="candidate-outcome" class="candidate-outcome-grid"></div>
           <div class="candidate-portal-grid">
@@ -160,13 +202,14 @@
               <div class="card-heading"><div><p class="eyebrow">PRIVATE TO THIS DEMO PROFILE</p><h3 id="candidate-chat-heading">Ask about your result</h3></div></div>
               <p id="chat-provider-notice" class="chat-provider-notice muted small">Checking assistant settings…</p>
               <div id="chat-messages" class="chat-messages" aria-live="polite"><div class="chat-bubble assistant">Ask about your result, score, or skill gaps. The assistant can explain the recorded outcome but cannot change it.</div></div>
-              <label id="chat-consent-row" class="chat-consent" hidden><input id="chat-external-consent" type="checkbox" /> I understand this question and minimized result facts will be sent to Google Gemini.</label>
+              <label id="chat-consent-row" class="chat-consent" hidden><input id="chat-external-consent" type="checkbox" /> <span id="chat-consent-copy">I understand this question and minimized result facts will be sent to the external provider.</span></label>
               <form id="candidate-chat-form" class="chat-form">
                 <label class="visually-hidden" for="candidate-chat-input">Your question</label>
                 <textarea id="candidate-chat-input" rows="2" maxlength="1000" placeholder="Why was I matched or unmatched?" required></textarea>
                 <button id="candidate-chat-send" class="button button-primary" type="submit">Send</button>
               </form>
             </section>
+          </div>
           </div>
           <details class="card password-settings">
             <summary>Change demo profile password</summary>
@@ -204,6 +247,6 @@
       <footer class="footer"><span>Stable Allocation Engine</span><span>Candidate-proposing deferred acceptance · C++ engine</span></footer>
     </main>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="/static/app.js" defer></script>
+    <script src="/static/app.js?v=groq-provider" defer></script>
   </body>
 </html>
