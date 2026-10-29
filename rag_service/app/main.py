@@ -1,9 +1,9 @@
 from pathlib import Path
 import csv
 from collections import defaultdict, deque
-import hmac
 import ipaddress
 import io
+import logging
 import re
 import subprocess
 import tempfile
@@ -18,6 +18,10 @@ from pydantic import BaseModel, Field
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .config import Settings, settings
+from .auth import (
+    AccountStore, MIN_PASSWORD_LENGTH, issue_access_token, load_or_create_jwt_secret,
+    verify_access_token, verify_password,
+)
 from .loaders import ExportData, ExportLoadError, load_exports
 from .skills import SkillAnalyzer
 
@@ -26,6 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_DIR = REPO_ROOT / "frontend"
 MAX_REQUEST_BYTES = 2_100_000
 MAX_CHAT_SESSIONS = 1000
+logger = logging.getLogger(__name__)
 
 
 class RequestBodyLimitMiddleware:
@@ -191,6 +196,37 @@ class ChatRequest(BaseModel):
     debug: bool = False
 
 
+class CandidateChatRequest(BaseModel):
+    session_id: str | None = Field(default=None, max_length=100)
+    message: str = Field(min_length=1)
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=1, max_length=255)
+    password: str = Field(min_length=1, max_length=128)
+    role: str = Field(default="candidate", pattern="^(candidate|admin)$")
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=128)
+
+
+class CreateAccountRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+    candidate_id: str = Field(min_length=1, max_length=100)
+    display_name: str = Field(min_length=1, max_length=120)
+    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=128)
+
+
+class ResetPasswordRequest(BaseModel):
+    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=128)
+
+
+class AccountStatusRequest(BaseModel):
+    active: bool
+
+
 class ReloadResponse(BaseModel):
     candidates: int
     companies: int
@@ -208,6 +244,8 @@ def create_app(config: Settings = settings) -> FastAPI:
         allow_headers=["*"],
     )
     app.state.config = config
+    app.state.jwt_secret = load_or_create_jwt_secret(config.jwt_secret_key, config.jwt_secret_path)
+    app.state.accounts = AccountStore(config.auth_db_path)
     app.state.data = None
     app.state.load_error = None
     app.state.analyzer = None
@@ -218,8 +256,24 @@ def create_app(config: Settings = settings) -> FastAPI:
     app.state.demo_directory = None
     app.state.dataset_name = "Existing export"
     app.state.dataset_kind = "saved_export"
+    app.state.retrieval_mode = "not_ready"
     request_events: dict[tuple[str, str], deque[float]] = defaultdict(deque)
     app.add_middleware(RequestBodyLimitMiddleware, max_bytes=MAX_REQUEST_BYTES)
+
+    def build_local_retriever(data: ExportData) -> None:
+        from .kb_index import KBIndex, LocalHashingEmbedder
+        from .retriever import Retriever
+
+        index = KBIndex.build_or_load(
+            Path(config.kb_dir), data.companies, Path(config.index_dir) / "local-hashing",
+            embedder=LocalHashingEmbedder(), model_name=LocalHashingEmbedder.model_name,
+        )
+        app.state.kb_index = index
+        app.state.retriever = Retriever(
+            index, company_names=[company.name for company in data.companies.values()],
+            minimum_similarity=min(config.min_similarity, 0.04),
+        )
+        app.state.retrieval_mode = "offline-hashing"
 
     @app.middleware("http")
     async def local_access_and_rate_limits(request: Request, call_next):
@@ -238,10 +292,16 @@ def create_app(config: Settings = settings) -> FastAPI:
                 return JSONResponse(status_code=403, content={"detail": "This prototype accepts local connections only."})
 
         path = request.url.path
-        if path.startswith("/admin/"):
+        if path in {"/auth/login", "/auth/password"}:
+            limit = 10
+            bucket = "login"
+        elif path.startswith("/auth/admin/"):
+            limit = 10
+            bucket = "login"
+        elif path.startswith("/admin/"):
             limit = 5
             bucket = "admin"
-        elif path == "/chat":
+        elif path in {"/chat", "/me/chat"}:
             limit = 20
             bucket = "chat"
         elif path in {"/demo/validate", "/demo/run"}:
@@ -259,13 +319,6 @@ def create_app(config: Settings = settings) -> FastAPI:
         events.append(now)
         return await call_next(request)
 
-    def require_admin_token(request: Request) -> None:
-        if len(config.admin_token) < 32:
-            raise HTTPException(status_code=503, detail="Admin actions are disabled. Configure a 32-character SAE_ADMIN_TOKEN to enable them.")
-        supplied = request.headers.get("x-admin-token", "")
-        if not hmac.compare_digest(supplied, config.admin_token):
-            raise HTTPException(status_code=401, detail="Admin authentication required.")
-
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
     @app.get("/", include_in_schema=False)
@@ -282,20 +335,157 @@ def create_app(config: Settings = settings) -> FastAPI:
         app.state.load_error = None
         app.state.kb_index = None
         app.state.retriever = None
+        app.state.retrieval_mode = "not_ready"
         app.state.sessions.clear()
         app.state.dataset_name = "Existing export"
         app.state.dataset_kind = "saved_export"
+        app.state.accounts.seed(data.candidates)
+        try:
+            build_local_retriever(data)
+        except (RuntimeError, OSError, ValueError) as exc:
+            logger.warning("Offline knowledge index could not be prepared: %s", exc)
         return data
 
     try:
         reload_data()
     except ExportLoadError as exc:
         app.state.load_error = str(exc)
+        app.state.accounts.seed({})
 
     def current_data() -> ExportData:
         if app.state.data is None:
             raise HTTPException(status_code=503, detail=app.state.load_error or "SAE exports are unavailable")
         return app.state.data
+
+    def account_candidate(account):
+        candidate = current_data().candidates.get(account.candidate_id)
+        if candidate is None or candidate.name != account.display_name:
+            raise HTTPException(status_code=404, detail="This demo profile is not present in the current allocation.")
+        return candidate
+
+    def current_identity(request: Request):
+        authorization = request.headers.get("authorization", "")
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not token:
+            raise HTTPException(status_code=401, detail="Sign in to access this page.")
+        claims = verify_access_token(token, app.state.jwt_secret)
+        if claims is None:
+            raise HTTPException(status_code=401, detail="Your sign-in has expired. Please sign in again.")
+        account = app.state.accounts.get(claims["sub"])
+        if (account is None or not account.active or account.role != claims["role"]
+                or account.token_version != claims["ver"]):
+            raise HTTPException(status_code=401, detail="Your sign-in is no longer valid. Please sign in again.")
+        return account
+
+    def current_candidate(request: Request):
+        account = current_identity(request)
+        if account.role != "candidate":
+            raise HTTPException(status_code=403, detail="Candidate sign-in is required.")
+        candidate = account_candidate(account)
+        return account, candidate
+
+    def current_admin(request: Request):
+        account = current_identity(request)
+        if account.role != "admin":
+            raise HTTPException(status_code=403, detail="Allocator sign-in is required.")
+        return account
+
+    def authorize_candidate_record(request: Request, candidate_id: str):
+        account = current_identity(request)
+        if account.role == "admin":
+            return account
+        if account.role != "candidate" or account.candidate_id != candidate_id:
+            raise HTTPException(status_code=403, detail="You can only access the signed-in candidate's record.")
+        account_candidate(account)
+        return account
+
+    @app.get("/auth/demo-profiles")
+    def demo_profiles():
+        data = app.state.data
+        accounts = app.state.accounts.list_candidates()
+        profiles = [
+            {"email": item.email, "display_name": item.display_name, "candidate_id": item.candidate_id}
+            for item in accounts
+            if item.active and data and item.candidate_id in data.candidates
+            and data.candidates[item.candidate_id].name == item.display_name
+        ]
+        return {"profiles": profiles}
+
+    @app.post("/auth/login")
+    def login(body: LoginRequest):
+        account = app.state.accounts.get(body.email)
+        if account is None or not verify_password(body.password, account) or account.role != body.role:
+            raise HTTPException(status_code=401, detail="Email or password is incorrect.")
+        if account.role == "candidate":
+            candidate = account_candidate(account)
+            display_name = candidate.name
+        else:
+            display_name = account.display_name
+        token, expires_in = issue_access_token(account.email, account.role, account.token_version, app.state.jwt_secret)
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "expires_in": expires_in,
+            "role": account.role,
+            "profile": {"name": display_name, "email": account.email},
+        }
+
+    @app.post("/auth/password")
+    def change_password(body: PasswordChangeRequest, request: Request):
+        account = current_identity(request)
+        try:
+            updated = app.state.accounts.set_password(account.email, body.new_password, body.current_password)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        token, expires_in = issue_access_token(updated.email, updated.role, updated.token_version, app.state.jwt_secret)
+        return {"access_token": token, "token_type": "bearer", "expires_in": expires_in, "role": updated.role}
+
+    @app.get("/auth/me")
+    def auth_me(request: Request):
+        account = current_identity(request)
+        if account.role == "admin":
+            return {"profile": {"name": account.display_name, "email": account.email, "role": "admin"}}
+        candidate = account_candidate(account)
+        return {"profile": {
+            "candidate_id": candidate.id,
+            "name": candidate.name,
+            "email": account.email,
+            "sector": candidate.sector,
+            "role": "candidate",
+        }}
+
+    @app.get("/me/result")
+    def my_result(request: Request):
+        account, candidate = current_candidate(request)
+        data = current_data()
+        assigned_company = data.companies.get(candidate.allocation.company_id or "")
+        return {
+            "profile": {
+                "candidate_id": candidate.id,
+                "name": candidate.name,
+                "email": account.email,
+                "sector": candidate.sector,
+                "location": candidate.location,
+                "skills": candidate.skills,
+            },
+            "allocation": candidate.allocation.model_dump(),
+            "assigned_company": assigned_company.model_dump() if assigned_company else None,
+            "explanation": app.state.analyzer.explain_outcome(candidate.id),
+            "skill_gap": app.state.analyzer.skill_gap(candidate.id),
+            "scoring_weights": data.candidates_export.scoring_weights,
+            "policy_version": data.candidates_export.policy_version or "prototype policy",
+            "dataset_name": app.state.dataset_name,
+            "synthetic": app.state.dataset_kind == "synthetic",
+        }
+
+    @app.post("/me/chat")
+    def my_chat(body: CandidateChatRequest, request: Request):
+        _, candidate = current_candidate(request)
+        return build_chat_response(ChatRequest(
+            candidate_id=candidate.id,
+            session_id=body.session_id,
+            message=body.message,
+        ))
 
     @app.get("/health")
     def health():
@@ -310,6 +500,7 @@ def create_app(config: Settings = settings) -> FastAPI:
             "candidates": len(data.candidates) if data else 0,
             "companies": len(data.companies) if data else 0,
             "kb_chunks": len(app.state.kb_index.chunks) if app.state.kb_index else 0,
+            "retrieval_mode": app.state.retrieval_mode,
             "llm_provider": config.llm_provider,
             "llm_provider_ready": provider_ready,
             "external_llm_processing": gemini_enabled,
@@ -332,24 +523,26 @@ def create_app(config: Settings = settings) -> FastAPI:
         }
 
     @app.post("/demo/validate")
-    def demo_validate(request: DemoCsvRequest):
-        return _validate_csv_pair(config, request.candidates_csv, request.companies_csv)
+    def demo_validate(body: DemoCsvRequest, request: Request):
+        current_admin(request)
+        return _validate_csv_pair(config, body.candidates_csv, body.companies_csv)
 
     @app.post("/demo/run")
-    def demo_run(request: DemoRunRequest):
-        if not request.synthetic and not config.allow_real_data:
+    def demo_run(body: DemoRunRequest, request: Request):
+        current_admin(request)
+        if not body.synthetic and not config.allow_real_data:
             raise HTTPException(
                 status_code=403,
                 detail="Real candidate data is disabled. Mark synthetic uploads as synthetic, or explicitly enable SAE_ALLOW_REAL_DATA for an authorized local evaluation.",
             )
-        _validate_csv_pair(config, request.candidates_csv, request.companies_csv)
+        _validate_csv_pair(config, body.candidates_csv, body.companies_csv)
         temp = tempfile.TemporaryDirectory(prefix="sae-demo-run-")
         root = Path(temp.name)
         candidates_path = root / "candidates.csv"
         companies_path = root / "companies.csv"
         output_path = root / "exports"
-        candidates_path.write_text(request.candidates_csv, encoding="utf-8")
-        companies_path.write_text(request.companies_csv, encoding="utf-8")
+        candidates_path.write_text(body.candidates_csv, encoding="utf-8")
+        companies_path.write_text(body.companies_csv, encoding="utf-8")
         try:
             result = subprocess.run(
                 [str(config.engine_runner_path), str(candidates_path), str(companies_path),
@@ -374,20 +567,28 @@ def create_app(config: Settings = settings) -> FastAPI:
         app.state.load_error = None
         app.state.kb_index = None
         app.state.retriever = None
+        app.state.retrieval_mode = "not_ready"
         app.state.sessions.clear()
         app.state.demo_directory = temp
-        app.state.dataset_name = request.dataset_name.strip()
-        app.state.dataset_kind = "synthetic" if request.synthetic else "uploaded"
+        app.state.dataset_name = body.dataset_name.strip()
+        app.state.dataset_kind = "synthetic" if body.synthetic else "uploaded"
+        app.state.accounts.seed(data.candidates)
+        try:
+            build_local_retriever(data)
+        except (RuntimeError, OSError, ValueError) as exc:
+            logger.warning("Could not refresh offline knowledge index after allocation: %s", exc)
         if old_temp is not None:
             old_temp.cleanup()
         return demo_state_payload(app)
 
     @app.get("/demo/state")
-    def demo_state():
+    def demo_state(request: Request):
+        current_admin(request)
         return demo_state_payload(app)
 
     @app.get("/demo/scenarios")
-    def demo_scenarios():
+    def demo_scenarios(request: Request):
+        current_admin(request)
         try:
             built = subprocess.run(
                 ["make", "tools/phase3_scenarios"], cwd=REPO_ROOT,
@@ -406,16 +607,18 @@ def create_app(config: Settings = settings) -> FastAPI:
         return {"seed": 25033, "synthetic": True, "rows": list(csv.DictReader(io.StringIO(result.stdout)))}
 
     @app.get("/candidates/{candidate_id}/summary")
-    def summary(candidate_id: str):
+    def summary(candidate_id: str, request: Request):
         from .guardrails import DISCLAIMER
+        authorize_candidate_record(request, candidate_id)
         data = current_data()
         if candidate_id not in data.candidates:
             raise HTTPException(status_code=404, detail=f"Unknown candidate id: {candidate_id}")
         return {**app.state.analyzer.explain_outcome(candidate_id), "disclaimer": DISCLAIMER}
 
     @app.get("/candidates/{candidate_id}/skill-gap")
-    def skill_gap(candidate_id: str, sector: str | None = None):
+    def skill_gap(candidate_id: str, request: Request, sector: str | None = None):
         from .guardrails import DISCLAIMER
+        authorize_candidate_record(request, candidate_id)
         data = current_data()
         if candidate_id not in data.candidates:
             raise HTTPException(status_code=404, detail=f"Unknown candidate id: {candidate_id}")
@@ -423,7 +626,7 @@ def create_app(config: Settings = settings) -> FastAPI:
 
     @app.post("/admin/reload", response_model=ReloadResponse)
     def reload_endpoint(request: Request):
-        require_admin_token(request)
+        current_admin(request)
         try:
             data = reload_data()
         except ExportLoadError as exc:
@@ -433,14 +636,14 @@ def create_app(config: Settings = settings) -> FastAPI:
 
     @app.post("/admin/reindex")
     def reindex_endpoint(request: Request):
-        require_admin_token(request)
+        current_admin(request)
         data = current_data()
         try:
             from .kb_index import KBIndex
             from .retriever import Retriever
 
             index = KBIndex.build_or_load(
-                Path(config.kb_dir), data.companies, Path(config.index_dir),
+                Path(config.kb_dir), data.companies, Path(config.index_dir) / "sentence-transformer",
                 model_name=config.embed_model,
             )
             app.state.kb_index = index
@@ -449,12 +652,12 @@ def create_app(config: Settings = settings) -> FastAPI:
                 company_names=[company.name for company in data.companies.values()],
                 minimum_similarity=config.min_similarity,
             )
+            app.state.retrieval_mode = "sentence-transformer"
         except (RuntimeError, OSError, ValueError) as exc:
             raise HTTPException(status_code=503, detail=f"Could not build knowledge index: {exc}") from exc
         return {"status": "reindexed", "kb_chunks": len(index.chunks)}
 
-    @app.post("/chat")
-    def chat(request: ChatRequest):
+    def build_chat_response(request: ChatRequest):
         from .guardrails import (
             DISCLAIMER, InputError, asks_for_other_candidate, clean_message,
             is_out_of_scope, unverified_numbers,
@@ -569,6 +772,64 @@ def create_app(config: Settings = settings) -> FastAPI:
         if request.debug:
             response["unverified_numbers"] = numbers
         return response
+
+    @app.post("/chat")
+    def chat(request: ChatRequest, http_request: Request):
+        account = current_identity(http_request)
+        if account.role != "candidate" or account.candidate_id != request.candidate_id:
+            raise HTTPException(status_code=403, detail="You can only access the signed-in candidate's assistant.")
+        account_candidate(account)
+        return build_chat_response(request)
+
+    @app.get("/admin/accounts")
+    def admin_accounts(request: Request):
+        current_admin(request)
+        return {"accounts": [{
+            "email": account.email,
+            "candidate_id": account.candidate_id,
+            "display_name": account.display_name,
+            "role": account.role,
+            "active": account.active,
+        } for account in app.state.accounts.list_all()]}
+
+    @app.post("/admin/accounts")
+    def admin_create_account(body: CreateAccountRequest, request: Request):
+        current_admin(request)
+        data = current_data()
+        candidate = data.candidates.get(body.candidate_id)
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="Candidate ID is not present in the current allocation.")
+        if candidate.name.strip().casefold() != body.display_name.strip().casefold():
+            raise HTTPException(status_code=422, detail="Display name must match the current candidate record.")
+        try:
+            account = app.state.accounts.create_candidate(
+                body.email, candidate.id, candidate.name, body.password,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return {"email": account.email, "candidate_id": account.candidate_id,
+                "display_name": account.display_name, "role": account.role}
+
+    @app.post("/admin/accounts/{email}/reset-password")
+    def admin_reset_password(email: str, body: ResetPasswordRequest, request: Request):
+        current_admin(request)
+        account = app.state.accounts.get(email)
+        if account is None or account.role != "candidate":
+            raise HTTPException(status_code=404, detail="Candidate account not found.")
+        try:
+            account = app.state.accounts.set_password(email, body.new_password)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {"email": account.email, "status": "password_reset", "sessions_revoked": True}
+
+    @app.post("/admin/accounts/{email}/status")
+    def admin_account_status(email: str, body: AccountStatusRequest, request: Request):
+        current_admin(request)
+        account = app.state.accounts.get(email)
+        if account is None or account.role != "candidate":
+            raise HTTPException(status_code=404, detail="Candidate account not found.")
+        updated = app.state.accounts.set_active(email, body.active)
+        return {"email": updated.email, "active": updated.active, "sessions_revoked": True}
 
     return app
 

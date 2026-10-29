@@ -79,6 +79,7 @@ class SkillAnalyzer:
                 "preference_rank": choice.preference_rank,
                 "outcome": choice.outcome,
                 "score": choice.breakdown.total,
+                "breakdown": choice.breakdown.model_dump(),
                 "company_cutoff_score": choice.company_cutoff_score,
                 "points_short": points_short,
                 "weakest_component": weakest,

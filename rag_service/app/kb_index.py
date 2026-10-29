@@ -30,6 +30,25 @@ class SentenceTransformerEmbedder:
         return np.asarray(self.model.encode(texts, normalize_embeddings=True), dtype=np.float32)
 
 
+class LocalHashingEmbedder:
+    """Deterministic feature hashing for an offline, dependency-light RAG index."""
+
+    model_name = "sae-local-hashing-v1"
+
+    def __init__(self, dimensions: int = 2048):
+        self.dimensions = dimensions
+
+    def encode(self, texts: list[str]) -> np.ndarray:
+        vectors = np.zeros((len(texts), self.dimensions), dtype=np.float32)
+        for row, text in enumerate(texts):
+            tokens = re.findall(r"[\w+#.-]+", text.lower())
+            features = tokens + [f"{left}_{right}" for left, right in zip(tokens, tokens[1:])]
+            for feature in features:
+                column = int.from_bytes(hashlib.sha256(feature.encode("utf-8")).digest()[:4], "little") % self.dimensions
+                vectors[row, column] += 1.0
+        return vectors
+
+
 def _doc_type(path: str) -> str:
     lowered = path.lower()
     if lowered.startswith("companies/"):
