@@ -180,9 +180,65 @@ class GeminiLLM:
         raise LLMError("The language service could not complete the request.")
 
 
+class GroqLLM:
+    """Minimal Groq chat-completions API client, using httpx only."""
+
+    endpoint = "https://api.groq.com/openai/v1/chat/completions"
+
+    def __init__(self, api_key: str, model: str, timeout: float = 30.0):
+        if not api_key:
+            raise LLMError("GROQ_API_KEY is required when LLM_PROVIDER=groq")
+        if not model:
+            raise LLMError("Set LLM_MODEL to an active Groq model when LLM_PROVIDER=groq")
+        self.api_key = api_key
+        self.model = model
+        self.timeout = timeout
+
+    def generate(self, system: str, messages: list[dict]) -> str:
+        body = {
+            "model": self.model,
+            "messages": [{"role": "system", "content": system}, *messages],
+            "max_completion_tokens": 700,
+        }
+        headers = {
+            "content-type": "application/json",
+            "authorization": f"Bearer {self.api_key}",
+        }
+        for attempt in range(2):
+            try:
+                response = httpx.post(self.endpoint, headers=headers, json=body, timeout=self.timeout)
+                if response.status_code == 429 or response.status_code >= 500:
+                    if attempt == 0:
+                        time.sleep(0.25)
+                        continue
+                    raise LLMError(f"Groq service returned HTTP {response.status_code}; please try again.")
+                if response.status_code >= 400:
+                    raise LLMError(f"Groq request was rejected (HTTP {response.status_code}); check the model and API settings.")
+                try:
+                    payload = response.json()
+                except ValueError as exc:
+                    logger.warning("Groq returned malformed JSON")
+                    raise LLMError("The language service returned an unreadable response. Please try again later.") from exc
+                choices = payload.get("choices", [])
+                message = choices[0].get("message", {}) if choices else {}
+                text = message.get("content") or ""
+                if not isinstance(text, str) or not text.strip():
+                    raise LLMError("Groq returned an empty answer; please try again.")
+                return text.strip()
+            except httpx.RequestError as exc:
+                if attempt == 0:
+                    time.sleep(0.25)
+                    continue
+                logger.warning("Groq request failed after retry (%s)", type(exc).__name__)
+                raise LLMError("The language service could not be reached. Please try again later.") from exc
+        raise LLMError("The language service could not complete the request.")
+
+
 def create_llm(provider: str, api_key: str = "", model: str = ""):
     if provider == "mock":
         return MockLLM()
     if provider == "gemini":
         return GeminiLLM(api_key=api_key, model=model)
+    if provider == "groq":
+        return GroqLLM(api_key=api_key, model=model)
     raise LLMError(f"Unsupported LLM_PROVIDER: {provider}")
