@@ -22,8 +22,10 @@ class Settings:
     min_similarity: float = float(os.getenv("MIN_SIMILARITY", "0.25"))
     engine_runner_path: Path = Path(os.getenv("SAE_ENGINE_RUNNER_PATH", REPO_ROOT / "allocator_runner"))
     engine_policy_path: Path = Path(os.getenv("SAE_POLICY_PATH", REPO_ROOT / "config" / "allocation_policy_v2.conf"))
-    admin_token: str = os.getenv("SAE_ADMIN_TOKEN", "")
     allow_real_data: bool = os.getenv("SAE_ALLOW_REAL_DATA", "0").strip().lower() in {"1", "true", "yes"}
+    jwt_secret_key: str = os.getenv("JWT_SECRET_KEY", "")
+    auth_db_path: Path = Path(os.getenv("SAE_AUTH_DB_PATH", Path(__file__).resolve().parents[1] / ".data" / "accounts.sqlite3"))
+    jwt_secret_path: Path = Path(os.getenv("SAE_JWT_SECRET_PATH", Path(__file__).resolve().parents[1] / ".data" / "jwt_signing.key"))
 
 
 settings = Settings()
