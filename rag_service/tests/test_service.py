@@ -1,6 +1,8 @@
 import json
 import hashlib
 import asyncio
+import stat
+from dataclasses import replace
 from pathlib import Path
 
 import httpx
@@ -32,6 +34,46 @@ class LocalEmbedder:
                 column = int.from_bytes(hashlib.sha256(token.strip(".,!?;:#()[]").encode()).digest()[:2], "little") % 256
                 vectors[row, column] += 1
         return vectors
+
+
+def authenticated_clients(config):
+    """Return candidate and admin clients with isolated, persistent test credentials."""
+    config = replace(
+        config,
+        index_dir=config.export_dir / "test-index",
+        auth_db_path=config.export_dir / "test-accounts.sqlite3",
+        jwt_secret_path=config.export_dir / "test-jwt.key",
+    )
+    app = create_app(config)
+    admin = TestClient(app)
+    response = admin.post("/auth/login", json={
+        "email": "admin@sae.demo", "password": "AdminPass123!", "role": "admin",
+    })
+    assert response.status_code == 200, response.text
+    admin.headers["Authorization"] = f"Bearer {response.json()['access_token']}"
+
+    candidate_id = next(iter(app.state.data.candidates), None)
+    candidate = TestClient(app)
+    if candidate_id is not None:
+        record = app.state.data.candidates[candidate_id]
+        account = app.state.accounts.get("test-candidate@example.test")
+        if account is None:
+            existing = next((item for item in app.state.accounts.list_candidates()
+                             if item.candidate_id == candidate_id), None)
+            if existing is None:
+                app.state.accounts.create_candidate(
+                    "test-candidate@example.test", record.id, record.name, "TestCandidate123!",
+                )
+            else:
+                app.state.accounts.set_password(existing.email, "TestCandidate123!")
+                app.state.accounts.set_active(existing.email, True)
+        response = candidate.post("/auth/login", json={
+            "email": "test-candidate@example.test",
+            "password": "TestCandidate123!", "role": "candidate",
+        })
+        assert response.status_code == 200, response.text
+        candidate.headers["Authorization"] = f"Bearer {response.json()['access_token']}"
+    return candidate, admin, app
 
 
 def test_loader_and_unsupported_schema(export_dir):
@@ -142,14 +184,15 @@ def test_explain_matched_and_not_reached_are_taken_from_exports(export_dir):
 def test_api_health_summary_gap_and_unknown_candidate(export_dir):
     config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
                       llm_provider="mock", llm_model="", llm_api_key="")
-    client = TestClient(create_app(config))
+    client, admin, _ = authenticated_clients(config)
     health = client.get("/health").json()
     assert health["status"] == "ok"
     assert health["candidates"] == 1
     assert client.get("/candidates/C001/summary").status_code == 200
     assert client.get("/candidates/C001/skill-gap").status_code == 200
-    assert client.get("/candidates/MISSING/summary").status_code == 404
-    assert client.post("/chat", json={"candidate_id": "MISSING", "message": "How did I match?"}).status_code == 404
+    assert client.get("/candidates/MISSING/summary").status_code == 403
+    assert admin.get("/candidates/MISSING/summary").status_code == 404
+    assert client.post("/chat", json={"candidate_id": "MISSING", "message": "How did I match?"}).status_code == 403
     cors = client.options("/chat", headers={
         "Origin": "http://localhost:5173",
         "Access-Control-Request-Method": "POST",
@@ -167,7 +210,7 @@ def test_phase6_end_to_end_demo_to_frontend_and_scenarios(export_dir):
         llm_api_key="",
         allow_real_data=False,
     )
-    client = TestClient(create_app(config))
+    client, admin, _ = authenticated_clients(config)
     fixture_dir = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "phase6"
     candidates_csv = (fixture_dir / "candidates.csv").read_text()
     companies_csv = (fixture_dir / "companies.csv").read_text()
@@ -176,8 +219,11 @@ def test_phase6_end_to_end_demo_to_frontend_and_scenarios(export_dir):
     assert homepage.status_code == 200
     assert "Stable Allocation Engine" in homepage.text
     assert client.get("/static/app.js").status_code == 200
+    stylesheet = client.get("/static/styles.css")
+    assert stylesheet.status_code == 200
+    assert "--forest: #183b32" in stylesheet.text
 
-    validation = client.post("/demo/validate", json={
+    validation = admin.post("/demo/validate", json={
         "candidates_csv": candidates_csv,
         "companies_csv": companies_csv,
     })
@@ -185,7 +231,7 @@ def test_phase6_end_to_end_demo_to_frontend_and_scenarios(export_dir):
     assert validation.json()["candidates"] == 3
     assert validation.json()["companies"] == 3
 
-    allocation = client.post("/demo/run", json={
+    allocation = admin.post("/demo/run", json={
         "candidates_csv": candidates_csv,
         "companies_csv": companies_csv,
         "dataset_name": "Phase 6 teaching scenario",
@@ -203,13 +249,13 @@ def test_phase6_end_to_end_demo_to_frontend_and_scenarios(export_dir):
     assert outcomes["Unmatched"]["status"] == "unmatched"
     assert any(event["type"] == "displaced" for event in result["allocation_trace"])
 
-    state = client.get("/demo/state").json()
+    state = admin.get("/demo/state").json()
     assert state["summary"] == result["summary"]
-    explanation = client.get("/candidates/1/summary")
+    explanation = admin.get("/candidates/1/summary")
     assert explanation.status_code == 200
     assert explanation.json()["status"] == "matched"
 
-    scenarios = client.get("/demo/scenarios")
+    scenarios = admin.get("/demo/scenarios")
     assert scenarios.status_code == 200, scenarios.text
     report = scenarios.json()
     assert report["seed"] == 25033
@@ -257,7 +303,7 @@ def test_guardrails_input_privacy_scope_and_number_tripwire():
 def test_chat_advisory_privacy_scope_skill_gap_and_debug(export_dir):
     config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
                       llm_provider="mock", llm_model="", llm_api_key="")
-    client = TestClient(create_app(config))
+    client, _, _ = authenticated_clients(config)
     empty = client.post("/chat", json={"candidate_id": "C001", "message": "  "})
     long = client.post("/chat", json={"candidate_id": "C001", "message": "x" * 1001})
     assert empty.status_code == 400
@@ -305,7 +351,7 @@ def test_chat_advisory_privacy_scope_skill_gap_and_debug(export_dir):
 def test_chat_uses_missing_skill_guide_and_returns_source(export_dir):
     config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
                       llm_provider="mock", llm_model="", llm_api_key="")
-    app = create_app(config)
+    client, _, app = authenticated_clients(config)
     embedder = LocalEmbedder()
     chunk = Chunk(
         text="1. Learn Docker images and containers.\n2. Run a small local app.",
@@ -316,7 +362,7 @@ def test_chat_uses_missing_skill_guide_and_returns_source(export_dir):
     index = KBIndex([chunk], vectors, embedder)
     app.state.kb_index = index
     app.state.retriever = Retriever(index, minimum_similarity=0.05)
-    response = TestClient(app).post("/chat", json={
+    response = client.post("/chat", json={
         "candidate_id": "C001", "message": "What should I learn to improve?"
     }).json()
     assert "Learn Docker images" in response["answer"]
@@ -324,27 +370,91 @@ def test_chat_uses_missing_skill_guide_and_returns_source(export_dir):
     assert response["sources"][0]["path"] == "kb/skills/docker.md"
 
 
-def test_admin_routes_require_a_long_token(export_dir):
+def test_admin_routes_require_role_based_jwt(export_dir):
     config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
                       llm_provider="mock", llm_model="", llm_api_key="")
-    client = TestClient(create_app(config))
-    disabled = client.post("/admin/reload")
-    assert disabled.status_code == 503
+    candidate, admin, _ = authenticated_clients(config)
+    assert candidate.post("/admin/reload").status_code == 403
+    authorized = admin.post("/admin/reload")
+    assert authorized.status_code == 200
+
+
+def test_password_change_revokes_tokens_and_account_survives_restart(export_dir):
+    config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
+                      llm_provider="mock", llm_model="", llm_api_key="")
+    candidate, _, app = authenticated_clients(config)
+    assert stat.S_IMODE(app.state.config.auth_db_path.stat().st_mode) == 0o600
+    old_token = candidate.headers["Authorization"]
+    changed = candidate.post("/auth/password", json={
+        "current_password": "TestCandidate123!",
+        "new_password": "NewCandidatePass123!",
+    })
+    assert changed.status_code == 200, changed.text
+    assert candidate.get("/auth/me").status_code == 401
+
+    new_token = f"Bearer {changed.json()['access_token']}"
+    restarted = TestClient(create_app(app.state.config))
+    assert restarted.get("/auth/me", headers={"Authorization": new_token}).status_code == 200
+    old_session = TestClient(app)
+    assert old_session.get("/auth/me", headers={"Authorization": old_token}).status_code == 401
+
+
+def test_local_knowledge_index_builds_without_external_model(export_dir):
+    config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
+                      llm_provider="mock", llm_model="", llm_api_key="")
+    _, _, app = authenticated_clients(config)
+    health = TestClient(app).get("/health").json()
+    assert health["retrieval_mode"] == "offline-hashing"
+    assert health["kb_chunks"] > 0
+
+
+def test_allocator_can_create_reset_and_disable_candidate_account(export_dir):
+    candidate_path = export_dir / "candidates.json"
+    payload = json.loads(candidate_path.read_text())
+    second = dict(payload["candidates"][0])
+    second.update(id="C002", name="Second Candidate")
+    payload["candidates"].append(second)
+    candidate_path.write_text(json.dumps(payload))
 
     config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
-                      llm_provider="mock", llm_model="", llm_api_key="",
-                      admin_token="s" * 40)
-    client = TestClient(create_app(config))
-    assert client.post("/admin/reload").status_code == 401
-    assert client.post("/admin/reload", headers={"x-admin-token": "wrong"}).status_code == 401
-    authorized = client.post("/admin/reload", headers={"x-admin-token": "s" * 40})
-    assert authorized.status_code == 200
+                      llm_provider="mock", llm_model="", llm_api_key="")
+    _, admin, _ = authenticated_clients(config)
+    created = admin.post("/admin/accounts", json={
+        "email": "second@example.test", "candidate_id": "C002",
+        "display_name": "Second Candidate", "password": "FirstCandidate123!",
+    })
+    assert created.status_code == 200, created.text
+
+    login = TestClient(admin.app).post("/auth/login", json={
+        "email": "second@example.test", "password": "FirstCandidate123!",
+        "role": "candidate",
+    })
+    token = login.json()["access_token"]
+    reset = admin.post("/admin/accounts/second@example.test/reset-password", json={
+        "new_password": "ResetCandidatePass123!",
+    })
+    assert reset.status_code == 200
+    assert TestClient(admin.app).get("/auth/me", headers={
+        "Authorization": f"Bearer {token}",
+    }).status_code == 401
+
+    login = TestClient(admin.app).post("/auth/login", json={
+        "email": "second@example.test", "password": "ResetCandidatePass123!",
+        "role": "candidate",
+    })
+    token = login.json()["access_token"]
+    deactivated = admin.post("/admin/accounts/second@example.test/status", json={"active": False})
+    assert deactivated.status_code == 200
+    assert TestClient(admin.app).get("/auth/me", headers={
+        "Authorization": f"Bearer {token}",
+    }).status_code == 401
 
 
 def test_real_candidate_allocation_is_off_by_default(export_dir):
     config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
                       llm_provider="mock", llm_model="", llm_api_key="")
-    response = TestClient(create_app(config)).post("/demo/run", json={
+    _, admin, _ = authenticated_clients(config)
+    response = admin.post("/demo/run", json={
         "candidates_csv": "id,name,skills,cgpa,sector,location\n1,Sample,SQL,8,IT,Pune\n",
         "companies_csv": "id,name,required_skills,seats,sector,location\n1,Role,SQL,1,IT,Pune\n",
         "dataset_name": "Uploaded candidate data",
@@ -357,7 +467,8 @@ def test_health_discloses_provider_without_secrets(export_dir):
     config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
                       llm_provider="gemini", llm_model="gemini-test",
                       llm_api_key="secret-test-key")
-    health = TestClient(create_app(config)).get("/health").json()
+    _, _, app = authenticated_clients(config)
+    health = TestClient(app).get("/health").json()
     assert health["external_llm_processing"] is True
     assert health["llm_provider_ready"] is True
     assert "Google" in health["privacy_notice"]
@@ -367,14 +478,14 @@ def test_health_discloses_provider_without_secrets(export_dir):
 def test_unverified_generated_numbers_are_suppressed(export_dir):
     config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
                       llm_provider="mock", llm_model="", llm_api_key="")
-    app = create_app(config)
+    client, _, app = authenticated_clients(config)
 
     class HallucinatingLLM:
         def generate(self, system, messages):
             return "Your official eligibility score is 999."
 
     app.state.llm = HallucinatingLLM()
-    response = TestClient(app).post("/chat", json={
+    response = client.post("/chat", json={
         "candidate_id": "C001", "message": "How did my result work?", "debug": True
     })
     assert response.status_code == 200
@@ -386,7 +497,7 @@ def test_unverified_generated_numbers_are_suppressed(export_dir):
 def test_mock_cites_verified_policy_fact(export_dir):
     config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
                       llm_provider="mock", llm_model="", llm_api_key="")
-    app = create_app(config)
+    client, _, app = authenticated_clients(config)
     faq_chunk = Chunk(
         text=("The MCA notice published 22 April 2026 says applicants aged 18–25 may apply. "
               "It includes final-year undergraduate and postgraduate students and reports "
@@ -401,7 +512,7 @@ def test_mock_cites_verified_policy_fact(export_dir):
             return [RetrievedChunk(label="KB-1", chunk=faq_chunk, score=1.0)]
 
     app.state.retriever = StaticRetriever()
-    response = TestClient(app).post("/chat", json={
+    response = client.post("/chat", json={
         "candidate_id": "C001", "message": "What age and monthly assistance does the current notice state?"
     })
     assert response.status_code == 200
@@ -446,7 +557,7 @@ def test_chunked_request_body_limit_applies_without_content_length(export_dir):
 def test_chat_rate_limit(export_dir):
     config = Settings(export_dir=export_dir, kb_dir=export_dir / "kb",
                       llm_provider="mock", llm_model="", llm_api_key="")
-    client = TestClient(create_app(config))
+    client, _, _ = authenticated_clients(config)
     for _ in range(20):
         response = client.post("/chat", json={
             "candidate_id": "C001", "message": "How did my allocation turn out?"

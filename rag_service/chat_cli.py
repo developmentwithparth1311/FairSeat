@@ -1,4 +1,5 @@
 import argparse
+from getpass import getpass
 import os
 import uuid
 
@@ -12,9 +13,25 @@ def main() -> int:
     args = parser.parse_args()
     base_url = args.api.rstrip("/")
     session_id = str(uuid.uuid4())
-
-    print(f"SAE assistant for candidate {args.candidate}. Type /summary, /gap, or /quit.")
     with httpx.Client(timeout=35.0) as client:
+        try:
+            profiles = client.get(f"{base_url}/auth/demo-profiles").json().get("profiles", [])
+        except httpx.HTTPError as exc:
+            print(f"Could not reach the assistant service: {exc}")
+            return 1
+        profile = next((item for item in profiles if item.get("candidate_id") == args.candidate), None)
+        if profile is None:
+            print("No active candidate account exists for this ID. Ask the allocator to create one in the portal.")
+            return 1
+        password = getpass(f"Password for {profile['email']}: ")
+        login = client.post(f"{base_url}/auth/login", json={
+            "email": profile["email"], "password": password, "role": "candidate",
+        })
+        if not login.is_success:
+            print(f"Sign-in failed ({login.status_code}): {login.text}")
+            return 1
+        client.headers["Authorization"] = f"Bearer {login.json()['access_token']}"
+        print(f"SAE assistant for {profile['display_name']}. Type /summary, /gap, or /quit.")
         try:
             health = client.get(f"{base_url}/health").json()
         except httpx.HTTPError:
@@ -35,7 +52,7 @@ def main() -> int:
             if message == "/quit":
                 return 0
             if message == "/summary":
-                response = client.get(f"{base_url}/candidates/{args.candidate}/summary")
+                response = client.get(f"{base_url}/me/result")
                 if response.is_success:
                     print(response.json())
                 else:
@@ -60,8 +77,7 @@ def main() -> int:
                 external_consent = True
 
             try:
-                response = client.post(f"{base_url}/chat", json={
-                    "candidate_id": args.candidate,
+                response = client.post(f"{base_url}/me/chat", json={
                     "session_id": session_id,
                     "message": message,
                 })
