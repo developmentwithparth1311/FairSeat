@@ -91,7 +91,8 @@ class AccountStore:
         with self._connect() as db:
             for email, candidate_id, name, password in SEED_CANDIDATES:
                 candidate = candidates.get(candidate_id)
-                if candidate is None or candidate.name != name:
+                candidate_name = candidate.get("name") if isinstance(candidate, dict) else getattr(candidate, "name", None)
+                if candidate is None or candidate_name != name:
                     continue
                 self._insert(db, email, candidate_id, name, "candidate", password)
             email, name, password = SEED_ADMIN
