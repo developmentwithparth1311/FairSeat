@@ -198,7 +198,7 @@ class GroqLLM:
         body = {
             "model": self.model,
             "messages": [{"role": "system", "content": system}, *messages],
-            "max_completion_tokens": 700,
+            "max_completion_tokens": 2048,
         }
         headers = {
             "content-type": "application/json",
@@ -223,7 +223,12 @@ class GroqLLM:
                 message = choices[0].get("message", {}) if choices else {}
                 text = message.get("content") or ""
                 if not isinstance(text, str) or not text.strip():
-                    raise LLMError("Groq returned an empty answer; please try again.")
+                    # Fallback if a reasoning model put thoughts into reasoning and exhausted content
+                    reasoning = message.get("reasoning") or ""
+                    if isinstance(reasoning, str) and reasoning.strip():
+                        text = reasoning.strip()
+                    else:
+                        raise LLMError("Groq returned an empty answer; please try again.")
                 return text.strip()
             except httpx.RequestError as exc:
                 if attempt == 0:
