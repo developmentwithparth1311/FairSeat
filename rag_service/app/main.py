@@ -92,6 +92,10 @@ class DemoRunRequest(DemoCsvRequest):
     synthetic: bool = False
 
 
+class CandidateSimulationRequest(BaseModel):
+    opportunity_ids: list[str] = Field(max_length=100)
+
+
 def _csv_preview(content: str) -> tuple[int, list[dict[str, str]]]:
     reader = csv.DictReader(io.StringIO(content))
     rows = list(reader)
@@ -336,7 +340,7 @@ def create_app(config: Settings = settings) -> FastAPI:
         elif path.startswith("/auth/admin/"):
             limit = 10
             bucket = "login"
-        elif path in {"/admin/allocations/run", "/demo/validate", "/demo/run"}:
+        elif path in {"/admin/allocations/run", "/demo/validate", "/demo/run", "/me/simulate-preferences"}:
             limit = 12
             bucket = "allocation"
         elif path.startswith("/admin/"):
