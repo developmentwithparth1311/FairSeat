@@ -675,6 +675,93 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ---------------------------------------------------- */
+/* 3. Main Translucent Glass Container                  */
+/* ---------------------------------------------------- */
+.main-panel {
+  flex: 1;
+  background: var(--glass-surface);
+  border: 1px solid var(--glass-surface-border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius-card);
+  box-shadow: var(--glass-surface-shadow);
+  padding: 32px;
+  overflow: hidden;
+}
+
+/* Page Greeting Header */
+.dashboard-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 28px;
+}
+.greeting-title {
+  margin: 0 0 6px;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  color: var(--text-primary);
+}
+.greeting-subtitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.header-action-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Button Variants */
+.button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-pill);
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+.button-primary {
+  background: var(--dark-pill);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 14px rgba(11, 22, 32, 0.25);
+}
+.button-primary:hover:not(:disabled) {
+  background: var(--dark-pill-hover);
+  transform: translateY(-1px);
+}
+.button-secondary {
+  background: var(--nested-surface);
+  color: var(--text-primary);
+  border-color: var(--nested-border);
+}
+.button-secondary:hover:not(:disabled) {
+  background: var(--nested-surface-hover);
+  transform: translateY(-1px);
+}
+.button-cyan {
+  background: var(--accent-cyan);
+  color: white;
+  box-shadow: 0 4px 14px rgba(34, 184, 240, 0.35);
+}
+.button-cyan:hover:not(:disabled) {
+  background: var(--accent-cyan-hover);
+  transform: translateY(-1px);
+}
+
+/* ---------------------------------------------------- */
 
 :root {
   color-scheme: light;
