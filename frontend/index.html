@@ -209,6 +209,121 @@
 
       <!-- 2. Main Content Wrapper -->
       <div class="main-wrapper">
+        <!-- Floating Top Bar -->
+        <header class="floating-topbar">
+          <div class="topbar-left-actions">
+            <button id="sidebar-toggle-topbar" class="sidebar-toggle-topbar" type="button" aria-label="Toggle sidebar" title="Toggle sidebar (Shortcut: [ )">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </svg>
+            </button>
+            <div class="topbar-search-wrap" id="topbar-search-container">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="topbar-search-input" class="topbar-search-input" type="search" placeholder="Search candidates, companies..." aria-label="Search candidates and opportunities (Shortcut: Cmd+K)" />
+              <kbd class="topbar-kbd-badge">⌘K</kbd>
+            </div>
+          </div>
+
+          <div class="topbar-meta-actions">
+            <span id="connection-status" class="status-pill status-ready" hidden>Ready</span>
+
+            <div class="user-profile-chip" id="user-profile-chip">
+              <div class="user-avatar" id="user-avatar-initials" aria-hidden="true">AD</div>
+              <div class="user-meta">
+                <strong id="user-display-name">Administrator</strong>
+                <small id="user-role-label">Allocator</small>
+              </div>
+            </div>
+
+            <button id="session-signout" class="button button-secondary button-header-signout" type="button" hidden>Sign out</button>
+          </div>
+        </header>
+
+        <!-- Main Glass Container -->
+        <main id="main" class="main-panel">
+          <!-- Page Greeting Header -->
+          <div class="dashboard-header" id="dashboard-greeting-header">
+            <div>
+              <h1 class="greeting-title" id="dashboard-greeting">Good afternoon, Allocator</h1>
+              <p class="greeting-subtitle" id="dashboard-date-status">Allocation Overview &amp; Analytics</p>
+            </div>
+            <div class="header-action-group" id="header-action-group">
+              <button id="header-refresh-btn" class="button button-secondary" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                Refresh
+              </button>
+              <button id="header-run-btn" class="button button-primary" type="button">
+                Run Allocation <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Role Selection Screen (When not signed in) -->
+          <!-- Legacy Input Card (Preserved for compatibility) -->
+          <section class="card input-card" aria-labelledby="input-heading" hidden>
+            <div class="section-heading">
+              <div><p class="sidebar-group-label">INPUT</p><h2 id="input-heading">Candidate and opportunity data</h2></div>
+              <span id="dataset-badge" class="dataset-badge">No dataset loaded</span>
+            </div>
+            <p class="muted">Use the included synthetic sample or select your own CSV files. The engine checks headers, values, references, and capacities before it runs.</p>
+            <div class="input-actions">
+              <button id="load-sample" class="button button-secondary">Load synthetic sample</button>
+              <label class="file-picker">Choose candidates CSV<input id="candidate-file" type="file" accept=".csv,text/csv" /></label>
+              <label class="file-picker">Choose companies CSV<input id="company-file" type="file" accept=".csv,text/csv" /></label>
+              <span id="file-status" class="muted small" aria-live="polite"></span>
+            </div>
+            <label class="check-label data-classification"><input id="synthetic-data" type="checkbox" checked /> This dataset contains synthetic/demo records only</label>
+            <div class="csv-grid">
+              <label class="csv-field"><span>Candidate records</span><textarea id="candidates-csv" spellcheck="false" aria-label="Candidate CSV data" placeholder="Candidate CSV contents"></textarea></label>
+              <label class="csv-field"><span>Company opportunities</span><textarea id="companies-csv" spellcheck="false" aria-label="Company CSV data" placeholder="Company CSV contents"></textarea></label>
+            </div>
+            <div class="validation-row">
+              <button id="validate-button" class="button button-secondary">Validate & preview</button>
+              <p id="validation-message" class="validation-message" role="status" aria-live="polite">Load sample data or choose both CSV files.</p>
+              <button id="run-button" class="button button-primary" disabled>Run allocation <span aria-hidden="true">→</span></button>
+            </div>
+            <div id="preview-area" class="preview-area" hidden>
+              <div class="preview-title"><strong>Validation passed</strong><span id="preview-counts" class="muted"></span></div>
+              <div class="preview-grid"><div><h3>Candidate preview</h3><div id="candidate-preview" class="preview-table-wrap"></div></div><div><h3>Opportunity preview</h3><div id="company-preview" class="preview-table-wrap"></div></div></div>
+            </div>
+          </section>
+
+          <!-- ============================================== -->
+          <!-- 3.1 ADMIN WORKSPACE VIEW                        -->
+          <!-- ============================================== -->
+          <section id="workspace-view" class="view" hidden>
+            <!-- Admin Login Panel -->
+            <div id="admin-login-panel" class="card auth-card admin-login-card">
+              <button class="auth-form-back" type="button" data-back-roles>← All sign-in options</button>
+              <div class="auth-intro">
+                <p class="sidebar-group-label" style="padding: 0; margin-bottom: 6px;">ALLOCATOR SIGN IN</p>
+                <h3 style="margin: 0 0 8px; font-size: 20px; font-weight: 800;">Open the allocation workbench</h3>
+                <p class="muted">Sign in with the administrator account to run allocations and manage candidate accounts.</p>
+              </div>
+              <form id="admin-login-form" class="login-form">
+                <label>Email<input id="admin-login-email" type="email" autocomplete="username" value="admin@sae.demo" required /></label>
+                <label>Password<input id="admin-login-password" type="password" autocomplete="current-password" required /></label>
+                <button id="admin-login-button" class="button button-primary" type="submit">Allocator sign in</button>
+              </form>
+              <p class="demo-credentials muted small" style="margin-top: 14px;">Demo password: <code>AdminPass123!</code></p>
+              <p id="admin-login-message" class="validation-message" role="status" aria-live="polite"></p>
+            </div>
+
+            <!-- Allocator Workspace Wrapper -->
+            <div id="allocator-workspace" hidden>
+              <!-- Admin Overview Panel -->
+              <section id="admin-overview-panel" class="admin-overview-card" aria-labelledby="admin-overview-heading">
+                <div class="section-heading" style="margin-bottom: 20px;">
+                  <div>
+                    <h2 id="admin-overview-heading" style="font-size: 22px; font-weight: 800;">Allocation Control & Analytics</h2>
+                    <p class="muted" style="margin: 4px 0 0;">Overview of current candidate-to-seat matches, scheme capacity, and algorithm metrics.</p>
+                  </div>
+                  <span id="admin-allocation-status" class="dataset-badge">Loading current state…</span>
+                </div>
+
+                <!-- NEW ROW 1: Wide Bar Chart & Donut Chart -->
 
 <!doctype html>
 <html lang="en">
