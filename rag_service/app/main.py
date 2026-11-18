@@ -326,7 +326,6 @@ def create_app(config: Settings = settings) -> FastAPI:
             if not peer_ip.is_loopback:
                 return JSONResponse(status_code=403, content={"detail": "This prototype accepts local connections only."})
         except ValueError:
-            # Only the explicit in-process test transport uses this peer name.
             if peer != "testclient":
                 return JSONResponse(status_code=403, content={"detail": "This prototype accepts local connections only."})
 

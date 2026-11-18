@@ -18,8 +18,6 @@ struct Candidate {
     std::optional<bool> priorParticipation;
     std::size_t eligibilityFilteredCount = 0;
 
-    // If present in input, this is the candidate's ordered acceptable list.
-    // An empty explicit list means the candidate has no acceptable options.
     std::vector<int> submittedPreferences;
     bool hasSubmittedPreferences = false;
     std::vector<int> preferenceList;

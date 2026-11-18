@@ -50,7 +50,7 @@ RunResult runLinearScan(const std::unordered_map<int, Candidate>& candidates,
             ++result.comparisons;
             if (it->first < weakest->first || (it->first == weakest->first && it->second > weakest->second)) weakest = it;
         }
-        ++result.comparisons; // challenger compared with the weakest holder
+        ++result.comparisons;
         if (score > weakest->first || (score == weakest->first && candidateId < weakest->second)) {
             const int displaced = weakest->second;
             *weakest = {score, candidateId};
@@ -141,7 +141,6 @@ int main(int argc, char** argv) {
         candidates.emplace(candidate.id, std::move(candidate));
     }
 
-    // Compare dense all-pair scores with sparse acceptable-edge payload storage.
     const auto storageStart = Clock::now();
     std::vector<double> dense(static_cast<std::size_t>(n) * m);
     for (int i = 0; i < n; ++i) for (int j = 0; j < m; ++j)

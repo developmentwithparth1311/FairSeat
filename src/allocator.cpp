@@ -211,7 +211,7 @@ void Allocator::runAllocation() {
                 displaced.matchedCompany = -1;
                 recordEvent("displaced", weakestId, compId, weakestScore, candId,
                             "replaced_by_higher_company_priority");
-                pool.push(weakestId); // re-enters the pool
+                pool.push(weakestId);
                 ++metrics_.queuePushes;
             } else {
                 recordEvent("rejected", candId, compId, score, weakestId,

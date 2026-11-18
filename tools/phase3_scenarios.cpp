@@ -154,7 +154,6 @@ int main(int argc, char** argv) {
     const ScenarioResult baseline = runScenario(candidates, companies, cohort, baselinePolicy);
     std::vector<std::string> groups = {"synthetic_group_A", "synthetic_group_B"};
     std::cout << "seed,candidates,companies,scenario,cohort,cohort_size,eligible,eligible_rate,allocated,unmatched,allocation_rate,average_score,changed_assignments,seats_filled,total_seats,seat_utilization,location_coverage,sectors_covered\n";
-    // Keep stable top-level columns alongside the cohort rows for an audit-friendly CSV.
     for (const auto& group : groups) {
         std::size_t count = 0, eligible = 0, allocated = 0;
         double scoreSum = 0.0;

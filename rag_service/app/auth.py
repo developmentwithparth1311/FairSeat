@@ -65,8 +65,6 @@ class AccountStore:
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-        # SQLite creates files using the process umask; enforce private access
-        # because this database contains password hashes and account metadata.
         os.chmod(self.path, 0o600)
 
     def _connect(self):

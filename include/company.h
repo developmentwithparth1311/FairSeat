@@ -8,8 +8,6 @@
 struct WeakerSeatHolderFirst {
     bool operator()(const std::pair<double, int>& left,
                     const std::pair<double, int>& right) const {
-        // Higher score is stronger; for equal scores, lower candidate ID wins.
-        // priority_queue places the weakest holder at top for O(1) inspection.
         if (left.first != right.first) return left.first > right.first;
         return left.second < right.second;
     }

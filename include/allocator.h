@@ -18,8 +18,6 @@ struct AllocationEvent {
     std::string reasonCode;
 };
 
-// The graph contains acceptable candidate-to-company edges. It does not imply
-// any external eligibility rule beyond the Phase 1 input contract.
 struct PreferenceGraph {
     std::vector<int> candidateIds;
     std::vector<int> companyIds;

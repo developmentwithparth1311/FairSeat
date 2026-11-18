@@ -15,7 +15,6 @@ int main() {
     company.sector = "IT";
     company.location = "Pune";
 
-    // 50 skill + 24 CGPA + 10 sector + 10 location points.
     const ScoreBreakdown breakdown = scoreBreakdown(candidate, company);
     assert(breakdown.total == computeScore(candidate, company));
     assert(std::abs(breakdown.total - 94.0) < 1e-9);

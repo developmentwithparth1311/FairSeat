@@ -29,7 +29,6 @@ def asks_for_other_candidate(message: str, current_candidate_id: str) -> bool:
         mentioned.add(match.group(1).upper())
     if not mentioned:
         return False
-    # The current C-prefixed and raw numeric forms are accepted as the same ID.
     normalized_forms = {normalized_current}
     normalized_forms.add(re.sub(r"^C", "", normalized_current))
     return any(re.sub(r"^C", "", item) not in {re.sub(r"^C", "", x) for x in normalized_forms}
