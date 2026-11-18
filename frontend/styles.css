@@ -1,3 +1,178 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  color-scheme: light;
+  --forest: #183b32;
+  --forest-2: #285749;
+
+  /* Luminous Teal-to-Aqua Mesh Gradient Canvas with Organic Ambient Lighting */
+  --bg-gradient: radial-gradient(circle at 10% 12%, rgba(186, 242, 255, 0.48) 0%, transparent 45%),
+                 radial-gradient(circle at 88% 18%, rgba(56, 189, 248, 0.42) 0%, transparent 42%),
+                 radial-gradient(circle at 75% 85%, rgba(14, 165, 233, 0.38) 0%, transparent 48%),
+                 radial-gradient(circle at 20% 90%, rgba(45, 212, 191, 0.32) 0%, transparent 40%),
+                 linear-gradient(135deg, #093b52 0%, #115c78 24%, #1a7e9e 55%, #38a8c4 82%, #6cd0e4 100%);
+
+  /* Hyper-Realistic Glass Surface Tokens (Directional light wash + Specular edge) */
+  --glass-surface: linear-gradient(135deg, rgba(255, 255, 255, 0.68) 0%, rgba(255, 255, 255, 0.46) 60%, rgba(255, 255, 255, 0.34) 100%);
+  --glass-surface-hover: linear-gradient(135deg, rgba(255, 255, 255, 0.80) 0%, rgba(255, 255, 255, 0.55) 100%);
+  --glass-surface-border: rgba(255, 255, 255, 0.62);
+  --glass-surface-shadow: 
+    0 24px 50px -12px rgba(5, 30, 48, 0.20),
+    0 6px 18px -2px rgba(5, 30, 48, 0.08),
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.90),
+    inset 0 -1px 1px 0 rgba(10, 36, 50, 0.04);
+  --glass-blur: blur(28px) saturate(180%) brightness(104%);
+
+  /* Dark-Tinted Frosted Teal Sidebar Glass */
+  --glass-sidebar: linear-gradient(150deg, rgba(14, 48, 68, 0.48) 0%, rgba(8, 30, 44, 0.38) 100%);
+  --glass-sidebar-border: rgba(255, 255, 255, 0.22);
+  --glass-sidebar-shadow: 
+    0 26px 60px -12px rgba(2, 16, 26, 0.42),
+    0 6px 20px -2px rgba(2, 16, 26, 0.22),
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.24);
+  --glass-sidebar-blur: blur(32px) saturate(160%) brightness(96%);
+
+  /* Plain Translucent Nested Fills (NO backdrop-filter) */
+  --nested-surface: rgba(255, 255, 255, 0.42);
+  --nested-surface-hover: rgba(255, 255, 255, 0.65);
+  --nested-border: rgba(255, 255, 255, 0.48);
+  --nested-well: rgba(14, 46, 62, 0.04);
+
+  /* Primary Accents */
+  --accent-cyan: #22B8F0;
+  --accent-cyan-hover: #1AA6E0;
+  --accent-cyan-soft: rgba(34, 184, 240, 0.16);
+  --dark-pill: #0B1620;
+  --dark-pill-hover: #162432;
+
+  /* Typography (WCAG AA High-Contrast on Glass Surfaces) */
+  --text-primary: #0A2433;       /* High contrast deep slate (> 7:1) */
+  --text-secondary: #2C4B5E;     /* Dark teal-slate (> 4.8:1) */
+  --text-muted: #4B6E82;         /* Accessible muted slate (>= 4.5:1) */
+  --text-white: #FFFFFF;
+  --text-inverse-muted: #D1E7F0;
+
+  /* Semantic Palettes */
+  --status-green: #10B981;
+  --status-green-bg: rgba(16, 185, 129, 0.18);
+  --status-amber: #F59E0B;
+  --status-amber-bg: rgba(245, 158, 11, 0.18);
+  --status-red: #EF4444;
+  --status-red-bg: rgba(239, 68, 68, 0.18);
+
+  /* Radii */
+  --radius-card: 22px;
+  --radius-inner: 14px;
+  --radius-pill: 999px;
+  --radius-sidebar: 26px;
+
+  /* Font Families */
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--bg-gradient);
+  background-attachment: fixed;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ambient Caustic Lighting Blobs */
+body::before {
+  content: "";
+  position: fixed;
+  top: -120px;
+  left: 8%;
+  width: 580px;
+  height: 580px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(110, 231, 255, 0.40) 0%, rgba(34, 184, 240, 0) 70%);
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+}
+body::after {
+  content: "";
+  position: fixed;
+  bottom: -140px;
+  right: 6%;
+  width: 650px;
+  height: 650px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.32) 0%, rgba(45, 212, 191, 0) 70%);
+  filter: blur(90px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+button, input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+}
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.55; }
+a { color: inherit; text-decoration: none; }
+
+.skip-link {
+  position: absolute;
+  top: 12px;
+  left: -9999px;
+  z-index: 100;
+  padding: 10px 16px;
+  border-radius: var(--radius-pill);
+  background: white;
+  color: var(--text-primary);
+  font-weight: 700;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+.skip-link:focus { left: 16px; }
+
+:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--accent-cyan-soft);
+}
+
+/* @supports Fallback for Non-Backdrop-Filter Browsers */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .floating-sidebar {
+    background: #0f3d52 !important;
+  }
+  .floating-topbar {
+    background: rgba(245, 250, 252, 0.96) !important;
+  }
+  .main-panel, .glass-card, .card {
+    background: rgba(245, 250, 252, 0.94) !important;
+  }
+}
+
+/* App Shell Container */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  padding: 20px;
+  gap: 20px;
+  max-width: 1640px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------------------------------------------------- */
+
 :root {
   color-scheme: light;
   --ink: #202b28;
