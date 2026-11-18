@@ -942,6 +942,101 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ---------------------------------------------------- */
+/* 5. Overview Row 2 & 3: 8 KPI Stat Cards Grid         */
+/* ---------------------------------------------------- */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 26px;
+}
+
+.kpi-card {
+  background: var(--glass-surface);
+  border: 1px solid var(--glass-surface-border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius-card);
+  padding: 20px 22px;
+  box-shadow: var(--glass-surface-shadow);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 140px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.kpi-card:hover {
+  transform: translateY(-3px) scale(1.008);
+  box-shadow: 
+    0 24px 50px -8px rgba(5, 30, 48, 0.22),
+    0 6px 18px -2px rgba(5, 30, 48, 0.10),
+    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 255, 255, 0.85);
+}
+
+.kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.kpi-icon-chip {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--nested-surface);
+  border: 1px solid var(--nested-border);
+  display: grid;
+  place-items: center;
+  color: var(--accent-cyan);
+}
+.kpi-icon-chip svg {
+  width: 18px;
+  height: 18px;
+}
+
+.kpi-delta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+}
+.kpi-delta-pill.positive {
+  color: var(--status-green);
+  background: var(--status-green-bg);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.kpi-delta-pill.negative {
+  color: var(--status-red);
+  background: var(--status-red-bg);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.kpi-number {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.8px;
+  color: var(--text-primary);
+  line-height: 1.1;
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.kpi-caption {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ---------------------------------------------------- */
 
 :root {
   color-scheme: light;
