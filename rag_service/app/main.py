@@ -613,6 +613,101 @@ def create_app(config: Settings = settings) -> FastAPI:
         account, _ = current_candidate(request)
         return candidate_portal_payload(account)
 
+    @app.post("/me/simulate-preferences")
+    def simulate_my_preferences(body: CandidateSimulationRequest, request: Request):
+        account, _ = current_candidate(request)
+        starting_version = app.state.profiles.allocation_state()["version"]
+        baseline = app.state.profiles.active_candidate_result(account.candidate_id)
+        if baseline is None:
+            raise HTTPException(status_code=409, detail="A current published allocation is required to run a preference preview.")
+
+        snapshot = app.state.profiles.allocation_snapshot()
+        if snapshot["version"] != starting_version:
+            raise HTTPException(status_code=409, detail="Allocation data changed while starting the preview. Reload your portal and try again.")
+        allowed_ids = {str(item["id"]) for item in snapshot["opportunities"]}
+        if len(body.opportunity_ids) != len(set(body.opportunity_ids)):
+            raise HTTPException(status_code=422, detail="Each opportunity can appear only once in a scenario.")
+        if any(item not in allowed_ids for item in body.opportunity_ids):
+            raise HTTPException(status_code=422, detail="A scenario contains an opportunity that is no longer available.")
+
+        try:
+            candidates_csv, companies_csv, profile_snapshot = app.state.profiles.allocator_csv(
+                config.engine_policy_path,
+                preference_overrides={account.candidate_id: body.opportunity_ids},
+            )
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        _validate_csv_pair(config, candidates_csv, companies_csv)
+
+        with tempfile.TemporaryDirectory(prefix="sae-candidate-scenario-") as temp:
+            root = Path(temp)
+            candidates_path = root / "candidates.csv"
+            companies_path = root / "opportunities.csv"
+            output_path = root / "exports"
+            candidates_path.write_text(candidates_csv, encoding="utf-8")
+            companies_path.write_text(companies_csv, encoding="utf-8")
+            try:
+                completed = subprocess.run(
+                    [str(config.engine_runner_path), str(candidates_path), str(companies_path),
+                     str(output_path), str(config.engine_policy_path)],
+                    cwd=REPO_ROOT, capture_output=True, text=True, timeout=60, check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise HTTPException(status_code=503, detail=f"Preference preview could not be completed: {exc}") from exc
+            if completed.returncode != 0:
+                raise HTTPException(status_code=422, detail=completed.stderr.strip() or "Preference preview failed.")
+            try:
+                data = load_exports(output_path)
+            except ExportLoadError as exc:
+                raise HTTPException(status_code=500, detail=f"Engine produced invalid preview exports: {exc}") from exc
+
+            company_ids = {engine_id: opportunity_id
+                           for opportunity_id, engine_id in profile_snapshot["engine_company_id_map"].items()}
+            candidate_ids = {engine_id: candidate_id
+                             for candidate_id, engine_id in profile_snapshot["engine_candidate_id_map"].items()}
+            for candidate in data.candidates_export.candidates:
+                candidate.id = candidate_ids.get(candidate.id, candidate.id)
+                if candidate.allocation.company_id is not None:
+                    candidate.allocation.company_id = company_ids.get(
+                        candidate.allocation.company_id, candidate.allocation.company_id,
+                    )
+            for event in data.candidates_export.allocation_trace:
+                event.candidate_id = candidate_ids.get(event.candidate_id, event.candidate_id)
+                if event.displaced_candidate_id is not None:
+                    event.displaced_candidate_id = candidate_ids.get(event.displaced_candidate_id, event.displaced_candidate_id)
+                if event.company_id is not None:
+                    event.company_id = company_ids.get(event.company_id, event.company_id)
+
+            candidate = data.candidates.get(account.candidate_id)
+            if candidate is None:
+                raise HTTPException(status_code=500, detail="The preview did not return your candidate result.")
+            companies = {item.id: item.name for item in data.companies_export.companies}
+            replay = [
+                {
+                    "step": index + 1,
+                    "type": event.type,
+                    "company_id": event.company_id,
+                    "company": companies.get(event.company_id),
+                    "score": event.score if event.type not in {"completion", "unmatched"} else None,
+                    "reason_code": event.reason_code,
+                }
+                for index, event in enumerate(data.candidates_export.allocation_trace)
+                if event.candidate_id == account.candidate_id
+            ]
+            allocation = candidate.allocation.model_dump()
+            if app.state.profiles.allocation_state()["version"] != snapshot["version"]:
+                raise HTTPException(status_code=409, detail="Allocation data changed during this preview. Reload your portal and try again.")
+            return {
+                "official": baseline["allocation"],
+                "scenario": {
+                    "allocation": allocation,
+                    "opportunity_name": companies.get(allocation.get("company_id")),
+                    "replay": replay,
+                },
+                "saved": False,
+                "published": False,
+            }
+
     @app.post("/me/chat")
     def my_chat(body: CandidateChatRequest, request: Request):
         account, _ = current_candidate(request)
