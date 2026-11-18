@@ -347,7 +347,8 @@ class CandidateDataStore:
             ranked.append((-score, tie_key, company["id"]))
         return [item[2] for item in sorted(ranked)]
 
-    def allocator_csv(self, policy_path: Path) -> tuple[str, str, dict]:
+    def allocator_csv(self, policy_path: Path,
+                      preference_overrides: dict[str, list[str]] | None = None) -> tuple[str, str, dict]:
         snapshot = self.allocation_snapshot()
         policy = self._policy_values(policy_path)
         candidate_io = io.StringIO(newline="")
@@ -357,12 +358,17 @@ class CandidateDataStore:
         engine_ids = {str(item["id"]): str(index)
                       for index, item in enumerate(snapshot["opportunities"], start=1)}
         opportunity_ids = set(engine_ids)
+        preference_overrides = preference_overrides or {}
         engine_candidate_ids = {str(item["candidate_id"]): str(index)
                                 for index, item in enumerate(snapshot["candidates"], start=1)}
         for candidate in snapshot["candidates"]:
-            choices = ([str(item) for item in candidate["preferences"] if str(item) in opportunity_ids]
-                       if candidate["preferences_submitted"] else [])
-            if not candidate["preferences_submitted"]:
+            candidate_id = str(candidate["candidate_id"])
+            if candidate_id in preference_overrides:
+                choices = [str(item) for item in preference_overrides[candidate_id] if str(item) in opportunity_ids]
+            else:
+                choices = ([str(item) for item in candidate["preferences"] if str(item) in opportunity_ids]
+                           if candidate["preferences_submitted"] else [])
+            if candidate_id not in preference_overrides and not candidate["preferences_submitted"]:
                 choices = self._automatic_preferences(candidate, snapshot["opportunities"], policy)
             writer.writerow([
                 engine_candidate_ids[str(candidate["candidate_id"])], candidate["name"],
