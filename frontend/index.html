@@ -324,6 +324,222 @@
                 </div>
 
                 <!-- NEW ROW 1: Wide Bar Chart & Donut Chart -->
+                <div class="overview-charts-row" id="overview-charts-row">
+                  <!-- Wide Chart Card (~2/3) -->
+                  <div class="chart-card" id="overview-bar-chart-card">
+                    <div class="chart-header">
+                      <div>
+                        <h3>Candidate Fit & Placement Distribution</h3>
+                        <p id="bar-chart-subtitle">Across candidate sectors and choice ranks</p>
+                      </div>
+                      <div class="segmented-control" role="group" aria-label="Distribution chart view toggle">
+                        <button class="segmented-button active" id="seg-btn-sector" type="button">By Sector</button>
+                        <button class="segmented-button" id="seg-btn-score" type="button">By Fit Score</button>
+                        <button class="segmented-button" id="seg-btn-rank" type="button">By Choice Rank</button>
+                      </div>
+                    </div>
+                    <div class="svg-chart-wrap" id="bar-chart-container" aria-live="polite">
+                      <!-- Rendered dynamically by app.js -->
+                    </div>
+                  </div>
+
+                  <!-- Donut Chart Card (~1/3) -->
+                  <div class="chart-card" id="overview-donut-chart-card">
+                    <div class="chart-header">
+                      <div>
+                        <h3>Capacity & Outcome</h3>
+                        <p>Total scheme seat distribution</p>
+                      </div>
+                    </div>
+                    <div class="svg-chart-wrap" id="donut-chart-container" aria-live="polite">
+                      <!-- Rendered dynamically by app.js -->
+                    </div>
+                    <div class="chart-legend" id="donut-legend">
+                      <!-- Rendered dynamically by app.js -->
+                    </div>
+                  </div>
+                </div>
+
+                <!-- NEW ROWS 2 & 3: 8 Responsive Glass KPI Stat Cards -->
+                <div id="metric-cards" class="kpi-grid">
+                  <!-- Rendered dynamically by app.js -->
+                </div>
+
+                <!-- Hidden legacy container to preserve bindings -->
+                <div id="admin-summary-cards" hidden></div>
+
+                <!-- Action Controls Bar -->
+                <div class="validation-row" style="margin-bottom: 24px;">
+                  <button id="admin-run-allocation" class="button button-primary" type="button">Run allocation <span aria-hidden="true">→</span></button>
+                  <button id="admin-reset-allocation" class="button button-secondary" type="button">Reset current allocation</button>
+                  <button id="admin-refresh" class="button button-secondary" type="button">Refresh</button>
+                  <span id="admin-action-message" class="validation-message" role="status" aria-live="polite"></span>
+                </div>
+
+                <!-- Published Run Results Explorer -->
+                <div id="results-section" class="results-section" hidden aria-labelledby="results-heading">
+                  <div class="section-heading result-heading">
+                    <div>
+                      <h2 id="results-heading">Candidate Outcomes & Explorer</h2>
+                      <p class="muted" style="margin: 4px 0 0;">Inspect candidate assignments, choice rankings, and displacement reasons.</p>
+                    </div>
+                    <div class="run-meta"><span id="policy-label"></span><span id="dataset-label"></span></div>
+                  </div>
+
+                  <div class="results-grid">
+                    <section class="card table-card" aria-labelledby="candidate-table-heading">
+                      <div class="card-heading">
+                        <div>
+                          <h3 id="candidate-table-heading" style="margin: 0; font-size: 16px; font-weight: 700;">Evaluated Candidates</h3>
+                          <p class="muted small">Select any row to view full match details and displacement factors.</p>
+                        </div>
+                      </div>
+                      <div class="filters">
+                        <label class="search-box">
+                          <span class="visually-hidden">Search candidates</span>
+                          <input id="candidate-search" type="search" placeholder="Search by name or ID (⌘K)" />
+                        </label>
+                        <select id="sector-filter" aria-label="Filter by sector"><option value="">All sectors</option></select>
+                        <select id="outcome-filter" aria-label="Filter by outcome"><option value="">All outcomes</option><option value="matched">Matched</option><option value="unmatched">Unmatched</option></select>
+                      </div>
+                      <div class="table-scroll-container">
+                        <table>
+                          <thead><tr><th>Candidate</th><th>Sector</th><th>Location</th><th>Outcome</th><th>Score</th></tr></thead>
+                          <tbody id="candidate-rows"></tbody>
+                        </table>
+                      </div>
+                    </section>
+                    <aside id="candidate-detail" class="card detail-card" aria-live="polite">
+                      <div class="empty-state"><h3>Select a candidate</h3><p>See their assignment, ranked options, fit breakdown, and reason codes.</p></div>
+                    </aside>
+                  </div>
+
+                  <section class="card companies-card" style="margin-top: 20px;">
+                    <div class="card-heading">
+                      <div><h3 style="margin: 0; font-size: 16px; font-weight: 700;">Opportunity Capacity & Cutoffs</h3><p class="muted small">Filled seats and competitive score floors after this allocation run.</p></div>
+                    </div>
+                    <div id="company-cards" class="company-grid"></div>
+                  </section>
+                </div>
+
+                <!-- Audit History -->
+                <section class="card companies-card" style="margin-top: 20px;">
+                  <div class="card-heading">
+                    <div><h3 style="margin: 0; font-size: 16px; font-weight: 700;">Previous Allocation Runs</h3><p class="muted small">Retained execution logs for audit and verification.</p></div>
+                  </div>
+                  <div class="table-scroll-container">
+                    <table>
+                      <thead><tr><th>Run ID</th><th>Published Date</th><th>Operator</th><th>Assigned</th><th>Unmatched</th></tr></thead>
+                      <tbody id="allocation-history-rows"></tbody>
+                    </table>
+                  </div>
+                </section>
+              </section>
+
+              <!-- Admin Candidates View -->
+              <section id="admin-candidates-view" class="view" hidden>
+                <div class="section-heading">
+                  <div><h2>Candidate Profiles & Status</h2><p class="muted">Registry of registered candidate profiles and their ordered opportunity preferences.</p></div>
+                  <button id="refresh-candidates" class="button button-secondary" type="button">Refresh list</button>
+                </div>
+                <section class="card table-card">
+                  <div class="table-scroll-container">
+                    <table>
+                      <thead><tr><th>Candidate</th><th>Sector</th><th>Location</th><th>Preferences</th><th>Allocation</th></tr></thead>
+                      <tbody id="admin-candidates-rows"></tbody>
+                    </table>
+                  </div>
+                </section>
+              </section>
+
+              <!-- Admin Opportunities View -->
+              <section id="admin-opportunities-view" class="view" hidden>
+                <div class="section-heading">
+                  <div><h2>Opportunity Seats & Requirements</h2><p class="muted">Edit capacity or skill requirements used in the deferred acceptance algorithm.</p></div>
+                  <button id="refresh-opportunities" class="button button-secondary" type="button">Refresh list</button>
+                </div>
+                <section class="card table-card">
+                  <div class="table-scroll-container">
+                    <table>
+                      <thead><tr><th>Opportunity</th><th>Sector</th><th>Location</th><th>Seats</th><th>Required skills</th><th>Qualifications</th></tr></thead>
+                      <tbody id="admin-opportunity-rows"></tbody>
+                    </table>
+                  </div>
+                  <div class="validation-row" style="margin-top: 16px;">
+                    <button id="save-opportunities" class="button button-primary" type="button">Save opportunities</button>
+                    <span id="opportunity-save-message" class="validation-message" role="status" aria-live="polite"></span>
+                  </div>
+                </section>
+              </section>
+
+              <!-- Admin Account Settings Drawer / Panel -->
+              <section id="admin-account-settings" class="card admin-management-card" hidden>
+                <div class="card-heading">
+                  <div>
+                    <h3 style="margin: 0; font-size: 18px; font-weight: 800;">Account Management & Security</h3>
+                    <p class="muted small">Create candidate profiles, reset credentials, or deactivate accounts.</p>
+                  </div>
+                  <button id="refresh-accounts" class="button button-secondary" type="button">Refresh list</button>
+                </div>
+                <div class="admin-account-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0;">
+                  <form id="admin-create-account-form" class="account-form" style="background: var(--nested-surface); padding: 16px; border-radius: var(--radius-inner); border: 1px solid var(--nested-border);">
+                    <h4 style="margin: 0 0 10px;">Create Candidate Account</h4>
+                    <label>Email<input id="new-account-email" type="email" required /></label>
+                    <label>Candidate ID<input id="new-account-candidate" required /></label>
+                    <label>Candidate Name<input id="new-account-name" required /></label>
+                    <label>Initial Password<input id="new-account-password" type="password" minlength="12" required /></label>
+                    <button class="button button-primary" style="margin-top: 8px;" type="submit">Create account</button>
+                  </form>
+                  <form id="admin-reset-account-form" class="account-form" style="background: var(--nested-surface); padding: 16px; border-radius: var(--radius-inner); border: 1px solid var(--nested-border);">
+                    <h4 style="margin: 0 0 10px;">Reset Candidate Password</h4>
+                    <label>Candidate Account<select id="reset-account-email" required></select></label>
+                    <label>New Password<input id="reset-account-password" type="password" minlength="12" required /></label>
+                    <button class="button button-secondary" style="margin-top: 8px;" type="submit">Reset password</button>
+                  </form>
+                </div>
+                <p id="admin-account-message" class="validation-message" role="status" aria-live="polite"></p>
+                <div class="table-scroll-container">
+                  <table>
+                    <thead><tr><th>Email</th><th>Name</th><th>Candidate ID</th><th>Status</th><th>Action</th></tr></thead>
+                    <tbody id="admin-account-rows"></tbody>
+                  </table>
+                </div>
+                <form id="admin-password-form" class="password-change-form" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--nested-border);">
+                  <h4 style="margin: 0 0 10px;">Change Allocator Password</h4>
+                  <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <label style="flex: 1; min-width: 180px;">Current password<input id="admin-current-password" type="password" required /></label>
+                    <label style="flex: 1; min-width: 180px;">New password<input id="admin-new-password" type="password" minlength="12" required /></label>
+                    <button class="button button-secondary" style="align-self: flex-end;" type="submit">Update password</button>
+                    <button id="admin-logout" class="button button-secondary" style="align-self: flex-end;" type="button">Sign out</button>
+                  </div>
+                </form>
+              </section>
+            </div>
+          </section>
+
+          <!-- ============================================== -->
+          <!-- 3.2 CANDIDATE PORTAL VIEW                       -->
+          <!-- ============================================== -->
+          <section id="candidate-view" class="view" hidden>
+            <!-- Candidate Login Screen -->
+            <div id="candidate-login" class="card auth-card">
+              <button class="auth-form-back" type="button" data-back-roles>← All sign-in options</button>
+              <div class="auth-intro">
+                <p class="sidebar-group-label" style="padding: 0; margin-bottom: 6px;">CANDIDATE SIGN IN</p>
+                <h3 style="margin: 0 0 8px; font-size: 22px; font-weight: 800;">Open your candidate portal</h3>
+                <p class="muted">Review and update your profile details and ranked opportunity preferences.</p>
+              </div>
+              <div id="demo-profile-list" class="demo-profile-list" aria-label="Pre-created demo profiles"></div>
+              <form id="candidate-login-form" class="login-form">
+                <label>Email<input id="login-email" name="email" type="email" autocomplete="username" required /></label>
+                <label>Password<input id="login-password" name="password" type="password" autocomplete="current-password" required /></label>
+                <button id="login-button" class="button button-primary" type="submit">Sign in</button>
+              </form>
+              <p class="demo-credentials muted small" style="margin-top: 14px;">Demo password for seeded profiles: <code>DemoPass123!</code></p>
+              <p id="login-message" class="validation-message" role="status" aria-live="polite"></p>
+            </div>
+
+            <!-- Candidate Dashboard -->
 
 <!doctype html>
 <html lang="en">
