@@ -3,6 +3,218 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#1b7a98" />
+    <meta name="description" content="A local demonstration of candidate-to-opportunity allocation with an inspectable matching process." />
+    <title>FairSeat — Stable Allocation Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css?v=scenario-drag-v1" />
+  </head>
+  <body>
+    <a class="skip-link" href="#home">Skip to content</a>
+
+    <div id="marketing-site" class="marketing-site">
+      <header class="site-nav-wrap">
+        <nav class="site-nav" aria-label="Public navigation">
+          <a class="site-brand" href="#home" aria-label="FairSeat home"><span class="brand-mark">F</span><span><strong>FairSeat</strong><small>STABLE ALLOCATION ENGINE</small></span></a>
+          <div class="site-nav-links"><a href="#platform">Platform</a><a href="#how-it-works">How it works</a><a href="#demo">Live preview</a></div>
+          <button class="nav-signin" type="button" data-open-auth>Sign in <span aria-hidden="true">↗</span></button>
+          <button class="mobile-menu-toggle" type="button" aria-label="Scroll to platform" onclick="document.querySelector('#platform').scrollIntoView({behavior:'smooth'})">☰</button>
+        </nav>
+      </header>
+
+      <main class="site-main" id="home">
+        <section class="public-hero" aria-labelledby="hero-title">
+          <div class="hero-light-scene" aria-hidden="true">
+            <video class="hero-video" muted loop playsinline preload="metadata" tabindex="-1">
+              <source src="/static/assets/wayglim-hero.mp4" type="video/mp4" />
+            </video>
+          </div>
+          <div class="hero-content">
+            <div class="hero-copy">
+              <p class="eyebrow-light"><span class="live-dot"></span> Transparent allocation, built for people</p>
+              <h1 id="hero-title">The right opportunity.<br /><span>Earned through fair matching.</span></h1>
+              <p class="hero-description">FairSeat brings candidate preferences and opportunity requirements together through stable matching. Every result is traceable, explainable, and designed to help people start well.</p>
+              <div class="hero-actions"><button type="button" class="button button-hero-primary" data-open-auth>Enter FairSeat <span aria-hidden="true">↗</span></button><a class="button button-hero-secondary" href="#platform">Explore the platform <span aria-hidden="true">↓</span></a></div>
+              <div class="hero-proof"><span><b>01</b> Preference-led</span><span><b>02</b> Explainable</span><span><b>03</b> Stable by design</span></div>
+            </div>
+            <div class="hero-note"><span class="note-line"></span><span>Matching people<br />with possibility.</span></div>
+          </div>
+          <div class="hero-bottom-meta"><span>FAIRSEAT / ALLOCATION SYSTEMS</span><span>01 — A BETTER WAY TO MATCH</span></div>
+        </section>
+
+        <section class="trust-strip" aria-label="Platform qualities"><div><span class="trust-icon">◎</span><span>Stable matching engine</span></div><div><span class="trust-icon">↗</span><span>Candidate-first preferences</span></div><div><span class="trust-icon">⌁</span><span>Decision traceability</span></div><div><span class="trust-icon">▤</span><span>Allocator control & analytics</span></div></section>
+
+        <section class="site-section platform-section" id="platform">
+          <div class="section-intro"><p class="eyebrow-light">A MATCHING SYSTEM WITH PEOPLE AT ITS CENTER</p><div class="section-heading-row"><h2>Fairness you can<br /><span>follow all the way through.</span></h2><p>From the first preference to the final placement, FairSeat makes the process easier to understand for everyone involved.</p></div></div>
+          <div class="feature-grid">
+            <article class="feature-card feature-large"><div class="feature-visual visual-preferences"><div class="preference-chip chip-one">01 <span>Northstar Labs</span> <b>↗</b></div><div class="preference-chip chip-two">02 <span>OpenField Group</span> <b>↗</b></div><div class="preference-chip chip-three">03 <span>Horizon Works</span> <b>↗</b></div><div class="visual-orbit"></div></div><div class="feature-copy"><span class="feature-index">01 / CANDIDATE FIRST</span><h3>Preferences stay in order.</h3><p>Candidates rank the opportunities they want. FairSeat honors those choices as the matching process works through available seats.</p></div></article>
+            <article class="feature-card"><div class="feature-visual visual-stability"><div class="stability-node node-a">Candidate</div><div class="stability-node node-b">Choice 1</div><div class="stability-node node-c">Seat held</div><div class="stability-path"></div></div><div class="feature-copy"><span class="feature-index">02 / STABILITY</span><h3>Assignments that hold.</h3><p>Deferred acceptance resolves competing applications while respecting preferences and opportunity priorities.</p></div></article>
+            <article class="feature-card"><div class="feature-visual visual-explain"><div class="explain-score"><span>FIT SCORE</span><strong>86.4</strong><i><b></b></i><small>Strong alignment</small></div><div class="explain-list"><span>Skills <b>92</b></span><span>Experience <b>81</b></span><span>Location <b>86</b></span></div></div><div class="feature-copy"><span class="feature-index">03 / EXPLAINABILITY</span><h3>See why a match happened.</h3><p>Fit breakdowns, ranked choices, reason codes, and the allocation trace give every outcome useful context.</p></div></article>
+            <article class="feature-card"><div class="feature-visual visual-capacity"><div class="capacity-ring"><div><strong>82%</strong><small>SEATS FILLED</small></div></div><div class="capacity-bars"><i style="--bar:74%"></i><i style="--bar:48%"></i><i style="--bar:92%"></i><i style="--bar:65%"></i><i style="--bar:82%"></i></div></div><div class="feature-copy"><span class="feature-index">04 / ALLOCATOR CONTROL</span><h3>Manage the whole cohort.</h3><p>Review candidate records, update opportunity seats and requirements, and monitor outcomes from one workspace.</p></div></article>
+            <article class="feature-card feature-wide"><div class="feature-visual visual-audit"><div class="audit-row"><span class="audit-step">01</span><span>Candidate proposed to preferred opportunity</span><b>LOGGED</b></div><div class="audit-row"><span class="audit-step">02</span><span>Opportunity compared priority scores</span><b>LOGGED</b></div><div class="audit-row"><span class="audit-step">03</span><span>Seat confirmed and outcome recorded</span><b>LOGGED</b></div></div><div class="feature-copy"><span class="feature-index">05 / AUDIT & INSIGHT</span><h3>A process you can inspect.</h3><p>Follow proposals, seat competition, accepted assignments, and displacement events with a readable allocation trace and cohort analytics.</p></div></article>
+            <article class="feature-card"><div class="feature-visual visual-candidate"><div class="candidate-preview-card"><div class="candidate-preview-avatar">AM</div><div><small>PROFILE READY</small><strong>Asha Mehta</strong><span>Product · Bengaluru</span></div><b>✓</b></div><div class="candidate-tags"><span>Skills</span><span>Interests</span><span>Preferences</span></div><div class="candidate-chat-preview"><span>ASK FAIRSEAT</span><b>Why was this my best fit?</b><i>↗</i></div></div><div class="feature-copy"><span class="feature-index">06 / CANDIDATE PORTAL</span><h3>More than a placement notice.</h3><p>Update profile details and ranked preferences, review fit and skill gaps, and ask about the recorded outcome in a private candidate portal.</p></div></article>
+            <article class="feature-card"><div class="feature-visual visual-data"><div class="data-file"><b>CSV</b><span>candidates.csv</span><i>✓ Validated</i></div><div class="data-file"><b>CSV</b><span>opportunities.csv</span><i>✓ Validated</i></div><div class="scenario-mini"><span>POLICY SCENARIOS</span><div><i style="--scenario:80%"></i><i style="--scenario:62%"></i><i style="--scenario:91%"></i></div><small>Compare outcomes before you publish</small></div></div><div class="feature-copy"><span class="feature-index">07 / DATA & POLICY</span><h3>Prepare and compare with care.</h3><p>Validate candidate and opportunity CSVs before a run, then compare synthetic policy scenarios to understand how allocation choices may shift outcomes.</p></div></article>
+          </div>
+        </section>
+
+        <section class="site-section process-section" id="how-it-works"><div class="section-intro"><p class="eyebrow-light">CLEAR AT EVERY STEP</p><div class="section-heading-row"><h2>From preferences<br /><span>to a stable outcome.</span></h2><p>One connected workflow keeps candidate intent, opportunity criteria, and allocator decisions in view.</p></div></div><div class="process-track"><article><span>01</span><div class="process-icon">↗</div><h3>Set up</h3><p>Candidate profiles and opportunity requirements are brought into one shared system.</p></article><article><span>02</span><div class="process-icon">☷</div><h3>Rank</h3><p>Candidates provide an ordered list of opportunities that reflect what they value.</p></article><article><span>03</span><div class="process-icon">⌘</div><h3>Match</h3><p>The engine resolves proposals and seat competition using the configured priorities.</p></article><article><span>04</span><div class="process-icon">✓</div><h3>Understand</h3><p>Every participant can see the result and the evidence behind the decision.</p></article></div></section>
+
+        <section class="site-section demo-section" id="demo"><div class="section-intro"><p class="eyebrow-light">A SMALL LOOK INSIDE</p><div class="section-heading-row"><h2>One preference.<br /><span>One clear result.</span></h2><p>Explore a sample allocation flow. This preview is illustrative; your signed-in workspace shows the live cohort and recorded engine output.</p></div></div><div class="demo-window"><div class="demo-window-top"><div class="window-dots"><i></i><i></i><i></i></div><span>FAIRSEAT / MATCH PREVIEW</span><span class="demo-live"><i></i> ILLUSTRATIVE</span></div><div class="demo-tabs" role="tablist" aria-label="Allocation preview steps"><button class="demo-tab active" type="button" role="tab" aria-selected="true" data-demo-step="0">01 Candidate</button><button class="demo-tab" type="button" role="tab" aria-selected="false" data-demo-step="1">02 Preferences</button><button class="demo-tab" type="button" role="tab" aria-selected="false" data-demo-step="2">03 Outcome</button></div><div class="demo-content"><div class="demo-profile"><div class="demo-avatar">AM</div><div><span class="demo-label">CANDIDATE PROFILE</span><h3 id="demo-title">Meet Asha Mehta</h3><p id="demo-copy">Asha’s profile and skills are evaluated against each opportunity’s requirements.</p></div></div><div class="demo-result-card" id="demo-result-card"><div class="demo-card-top"><span>OPPORTUNITY MATCH</span><span class="demo-rank">PREFERENCE <b id="demo-rank">01</b></span></div><strong id="demo-opportunity">Northstar Labs</strong><div class="demo-meter"><i id="demo-meter-fill" style="width:86%"></i></div><div class="demo-card-footer"><span id="demo-fit-label">Strong skills alignment</span><b id="demo-status">STABLE MATCH</b></div></div></div><div class="demo-bottom"><span id="demo-step-caption">A profile is compared with the requirements of each available opportunity.</span><div><button type="button" class="demo-arrow" id="demo-prev" aria-label="Previous demo step">←</button><button type="button" class="demo-arrow" id="demo-next" aria-label="Next demo step">→</button></div></div></div></section>
+
+        <section class="site-cta"><div><p class="eyebrow-light">A BETTER ALLOCATION STARTS HERE</p><h2>Make every opportunity<br /><span>count.</span></h2><p>Sign in to explore your FairSeat workspace.</p></div><button type="button" class="button button-hero-primary" data-open-auth>Sign in to FairSeat <span aria-hidden="true">↗</span></button></section>
+      </main>
+      <footer class="site-footer"><a class="site-brand" href="#home"><span class="brand-mark">F</span><span><strong>FairSeat</strong><small>STABLE ALLOCATION ENGINE</small></span></a><span>Transparent, preference-led allocation.</span><a href="#home">Back to top ↑</a></footer>
+    </div>
+
+    <section id="auth-screen" class="auth-screen" hidden aria-labelledby="auth-title">
+      <header class="auth-nav"><a class="site-brand" href="#home" data-back-home><span class="brand-mark">F</span><span><strong>FairSeat</strong><small>STABLE ALLOCATION ENGINE</small></span></a><button class="auth-back-home" type="button" data-back-home>← <span>Back to FairSeat</span></button></header>
+      <main class="auth-layout"><div class="auth-story"><p class="eyebrow-light"><span class="live-dot"></span> YOUR FAIRSEAT WORKSPACE</p><h1 id="auth-title">A fair start<br /><span>begins here.</span></h1><p>Sign in to manage your profile, preferences, or allocation program.</p><div class="auth-story-rule"></div><small>SECURE ACCESS · ROLE-BASED WORKSPACES</small></div><div class="auth-panel"><div class="auth-panel-top"><span class="auth-panel-kicker">WELCOME BACK</span><span class="auth-shield">◇</span></div><h2>Sign in to continue</h2><p class="auth-panel-subtitle">Choose the workspace that’s right for you.</p><div id="auth-role-choice" class="auth-role-choice"><button id="choose-candidate" class="auth-role-option" type="button"><span class="auth-role-icon">◎</span><span><strong>Candidate portal</strong><small>Manage your profile and preferences</small></span><b>→</b></button><button id="choose-admin" class="auth-role-option" type="button"><span class="auth-role-icon">▦</span><span><strong>Allocator workspace</strong><small>Manage opportunities and allocations</small></span><b>→</b></button></div><div id="auth-panel-host"></div></div></main><div class="auth-footer"><span>FairSeat · Stable Allocation Engine</span><span>Built for clear and explainable outcomes</span></div>
+    </section>
+
+    <div id="app-shell" class="app-shell" hidden>
+      <!-- 1. Floating Inset Left Sidebar -->
+      <aside class="floating-sidebar" id="app-sidebar" aria-label="Main Navigation">
+        <div>
+          <div class="sidebar-brand">
+            <div class="sidebar-brand-main">
+              <div class="sidebar-logo-tile" aria-hidden="true">FS</div>
+              <div class="sidebar-brand-text">
+                <strong>FairSeat Admin</strong>
+                <small id="sidebar-role-subtitle">Allocation Center</small>
+              </div>
+            </div>
+            <button id="sidebar-collapse-btn" class="sidebar-collapse-btn" type="button" aria-label="Toggle sidebar collapse" title="Toggle sidebar (Shortcut: [ )">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Navigation Links (Admin Mode) -->
+          <nav class="sidebar-nav tabs" id="admin-sidebar-nav" aria-label="Workspace views">
+            <div class="sidebar-nav-group">
+              <span class="sidebar-group-label">WORKSPACE</span>
+              <button class="sidebar-nav-item tab active" data-view="workspace" data-tooltip="Overview" aria-current="page">
+                <span class="nav-item-content">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                  Overview
+                </span>
+              </button>
+              <button class="sidebar-nav-item tab" data-view="admin-candidates" data-tooltip="Candidates" data-admin-only hidden>
+                <span class="nav-item-content">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  Candidates
+                </span>
+                <span class="sidebar-badge" id="sidebar-badge-candidates">—</span>
+              </button>
+              <button class="sidebar-nav-item tab" data-view="admin-opportunities" data-tooltip="Opportunities" data-admin-only hidden>
+                <span class="nav-item-content">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                  Opportunities
+                </span>
+                <span class="sidebar-badge" id="sidebar-badge-opportunities">—</span>
+              </button>
+            </div>
+
+            <div class="sidebar-nav-group" data-admin-only hidden>
+              <span class="sidebar-group-label">ALGORITHM & AUDIT</span>
+              <button class="sidebar-nav-item tab" data-view="algorithm" data-tooltip="Allocation Trace" data-admin-only hidden>
+                <span class="nav-item-content">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                  Allocation Trace
+                </span>
+              </button>
+              <button class="sidebar-nav-item tab" data-view="fairness" data-tooltip="Policy Scenarios" data-admin-only hidden>
+                <span class="nav-item-content">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                  Policy Scenarios
+                </span>
+              </button>
+            </div>
+
+            <div class="sidebar-nav-group" id="sidebar-system-group" data-admin-only hidden>
+              <span class="sidebar-group-label">SYSTEM</span>
+              <button class="sidebar-nav-item" id="sidebar-toggle-settings" data-tooltip="Accounts & Security" type="button">
+                <span class="nav-item-content">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                  Accounts & Security
+                </span>
+              </button>
+              <button class="sidebar-nav-item admin-global-signout" id="admin-global-signout" data-tooltip="Sign out" data-admin-only hidden type="button">
+                <span class="nav-item-content">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  Sign out
+                </span>
+              </button>
+            </div>
+          </nav>
+
+          <!-- Navigation Links (Candidate Mode) -->
+          <nav class="sidebar-nav" id="candidate-sidebar-nav" aria-label="Candidate portal views" hidden>
+            <div class="sidebar-nav-group">
+              <span class="sidebar-group-label">MY APPLICATION</span>
+              <a href="#candidate-dashboard" class="sidebar-nav-item active" id="cand-nav-overview" data-tooltip="My Profile">
+                <span class="nav-item-content">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  My Profile
+                </span>
+              </a>
+              <a href="#preference-editor-card" class="sidebar-nav-item" id="cand-nav-preferences" data-tooltip="Opportunity Choices">
+                <span class="nav-item-content">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                  Opportunity Choices
+                </span>
+              </a>
+              <a href="#candidate-allocation-details" class="sidebar-nav-item" id="cand-nav-result" data-tooltip="Allocation Result">
+                <span class="nav-item-content">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>
+                  Allocation Result
+                </span>
+              </a>
+              <a href="#candidate-chat-heading" class="sidebar-nav-item" id="cand-nav-chat" data-tooltip="AI Assistant">
+                <span class="nav-item-content">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  AI Assistant
+                </span>
+              </a>
+            </div>
+            <div class="sidebar-nav-group">
+              <span class="sidebar-group-label">ACCOUNT</span>
+              <button class="sidebar-nav-item" id="sidebar-candidate-signout" data-tooltip="Sign out" type="button">
+                <span class="nav-item-content">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  Sign out
+                </span>
+              </button>
+            </div>
+          </nav>
+        </div>
+
+        <!-- Sidebar Bottom Real-Data Status Card -->
+        <div class="sidebar-bottom">
+          <div class="sidebar-status-card" id="sidebar-status-widget">
+            <div class="status-card-header">
+              <span>Seat Quota</span>
+              <strong id="sidebar-quota-text">— / —</strong>
+            </div>
+            <div class="sidebar-progress-track">
+              <div id="sidebar-quota-bar" class="sidebar-progress-fill" style="width: 0%"></div>
+            </div>
+            <small id="sidebar-policy-text">FairSeat Live Engine</small>
+          </div>
+        </div>
+      </aside>
+
+      <!-- 2. Main Content Wrapper -->
+      <div class="main-wrapper">
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#183b32" />
     <meta name="description" content="A local demonstration of candidate-to-opportunity allocation with an inspectable matching process." />
     <title>SAE — Allocation workspace</title>
