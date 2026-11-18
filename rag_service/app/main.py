@@ -549,6 +549,21 @@ def create_app(config: Settings = settings) -> FastAPI:
             profile["dataset_name"] = run["snapshot"].get("dataset_name", "Saved allocation")
             profile["synthetic"] = run["snapshot"].get("dataset_kind") == "synthetic"
             profile["run_id"] = run["run_id"]
+            company_names = {item["id"]: item["name"] for item in run["snapshot"]["companies_export"]["companies"]}
+            trace = run["snapshot"].get("candidates_export", {}).get("allocation_trace", [])
+            profile["allocation_replay"] = [
+                {
+                    "step": index + 1,
+                    "type": event["type"],
+                    "company_id": event.get("company_id"),
+                    "company": company_names.get(event.get("company_id")),
+                    "score": event.get("score") if event["type"] not in {"completion", "unmatched"} else None,
+                    "reason_code": event.get("reason_code"),
+                }
+                for index, event in enumerate(
+                    item for item in trace if item.get("candidate_id") == account.candidate_id
+                )
+            ]
         return profile
 
     @app.get("/me/profile")
