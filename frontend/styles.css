@@ -762,6 +762,186 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ---------------------------------------------------- */
+/* 4. Overview Row 1: Charts (2/3 Bar & 1/3 Donut)      */
+/* ---------------------------------------------------- */
+.overview-charts-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(320px, 1fr);
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.chart-card {
+  background: var(--glass-surface);
+  border: 1px solid var(--glass-surface-border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius-card);
+  padding: 22px 24px;
+  box-shadow: var(--glass-surface-shadow);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 310px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.chart-card:hover {
+  transform: translateY(-3px) scale(1.004);
+  box-shadow: 
+    0 28px 56px -10px rgba(5, 30, 48, 0.24),
+    0 8px 24px -2px rgba(5, 30, 48, 0.12),
+    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 255, 255, 0.82);
+}
+
+.chart-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.chart-header h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.chart-header p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Segmented Control Pill Group */
+.segmented-control {
+  display: inline-flex;
+  background: var(--nested-surface);
+  border: 1px solid var(--nested-border);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+  gap: 3px;
+}
+.segmented-button {
+  border: none;
+  background: transparent;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  transition: all 0.16s ease;
+}
+.segmented-button:hover {
+  color: var(--text-primary);
+}
+.segmented-button.active {
+  background: var(--dark-pill);
+  color: white;
+  box-shadow: 0 2px 8px rgba(11, 22, 32, 0.2);
+}
+
+/* SVG Chart Containers */
+.svg-chart-wrap {
+  width: 100%;
+  height: 200px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.svg-chart-wrap svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Donut Chart Legend & Central Metric */
+.donut-center-metric {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+.donut-center-metric strong {
+  display: block;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+.donut-center-metric small {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.chart-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--nested-border);
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  padding: 4px 8px;
+  border-radius: var(--radius-pill);
+  transition: background 0.15s ease;
+}
+.legend-item:hover {
+  background: var(--nested-surface-hover);
+}
+.legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Chart Empty / Placeholder State */
+.chart-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 30px 16px;
+  color: var(--text-muted);
+}
+.chart-empty-state svg {
+  width: 42px;
+  height: 42px;
+  color: var(--text-muted);
+  opacity: 0.6;
+  margin-bottom: 12px;
+}
+.chart-empty-state strong {
+  display: block;
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.chart-empty-state p {
+  margin: 0;
+  font-size: 12px;
+  max-width: 280px;
+}
+
+/* ---------------------------------------------------- */
 
 :root {
   color-scheme: light;
